@@ -1,26 +1,49 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-primary: #0a0b0d;
+  --bg-secondary: #111318;
+  --bg-tertiary: #181b23;
+  --bg-elevated: #1e2329;
+  --border: #2b3139;
+  --border-subtle: #23282f;
+  --text-primary: #eaecef;
+  --text-secondary: #848e9c;
+  --text-muted: #5e6673;
+  --accent-buy: #0ecb81;
+  --accent-sell: #f6465d;
+  --accent-cyan: #0ab3e6;
+  --accent-gold: #f0b90b;
+  --chart-up: #0ecb81;
+  --chart-down: #f6465d;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-background: var(--bg-primary);
+  --color-foreground: var(--text-primary);
+  --font-sans: var(--font-dm-sans);
+  --font-mono: var(--font-jetbrains);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-jetbrains), 'JetBrains Mono', monospace;
+}
+
+/* Thin scrollbars for trading UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-tertiary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
 }
