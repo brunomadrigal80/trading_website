@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+
 const pairs = [
   { symbol: "BTC/USDT", price: 97432.45, change: 2.34 },
   { symbol: "ETH/USDT", price: 3621.28, change: -0.87 },
@@ -13,14 +16,28 @@ const pairs = [
   { symbol: "DOT/USDT", price: 7.45, change: -0.56 },
 ];
 
+function toPairParam(symbol: string) {
+  return symbol.replace("/", "-");
+}
+
 export default function MarketTicker() {
+  const searchParams = useSearchParams();
+  const currentPair = searchParams.get("pair")?.replace("-", "/") ?? "BTC/USDT";
+
   return (
     <div className="flex items-center gap-6 overflow-x-auto border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-4 py-2">
-      {pairs.map((pair) => (
-        <button
-          key={pair.symbol}
-          className="flex shrink-0 items-center gap-3 rounded px-3 py-1.5 transition-colors hover:bg-[var(--bg-tertiary)]"
-        >
+      {pairs.map((pair) => {
+        const href = `/?pair=${toPairParam(pair.symbol)}`;
+        const isActive = currentPair === pair.symbol;
+
+        return (
+          <Link
+            key={pair.symbol}
+            href={href}
+            className={`flex shrink-0 items-center gap-3 rounded px-3 py-1.5 transition-colors hover:bg-[var(--bg-tertiary)] ${
+              isActive ? "bg-[var(--bg-tertiary)] ring-1 ring-[var(--border)]" : ""
+            }`}
+          >
           <span className="font-mono text-sm font-medium text-[var(--text-primary)]">
             {pair.symbol}
           </span>
@@ -35,8 +52,9 @@ export default function MarketTicker() {
             {pair.change >= 0 ? "+" : ""}
             {pair.change}%
           </span>
-        </button>
-      ))}
+          </Link>
+        );
+      })}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+
 const bids = [
   { price: 97430.5, amount: 0.245 },
   { price: 97428.2, amount: 1.12 },
@@ -25,7 +27,15 @@ const asks = [
 const maxBidAmount = Math.max(...bids.map((b) => b.amount));
 const maxAskAmount = Math.max(...asks.map((a) => a.amount));
 
+function getBaseAsset(pair: string) {
+  return pair.split("/")[0] ?? "BTC";
+}
+
 export default function OrderBook() {
+  const searchParams = useSearchParams();
+  const pair = searchParams.get("pair")?.replace("-", "/") ?? "BTC/USDT";
+  const baseAsset = getBaseAsset(pair);
+
   return (
     <div className="flex flex-col rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
       <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
@@ -50,7 +60,7 @@ export default function OrderBook() {
       <div className="text-xs">
         <div className="grid grid-cols-3 gap-2 border-b border-[var(--border-subtle)] px-4 py-2 text-[var(--text-muted)]">
           <span>Price(USDT)</span>
-          <span className="text-right">Amount(BTC)</span>
+          <span className="text-right">Amount({baseAsset})</span>
           <span className="text-right">Total</span>
         </div>
         <div className="max-h-[220px] overflow-y-auto">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   createChart,
   CandlestickSeries,
@@ -36,6 +37,8 @@ function generateCandles(): CandlestickData[] {
 }
 
 export default function Chart() {
+  const searchParams = useSearchParams();
+  const pair = searchParams.get("pair")?.replace("-", "/") ?? "BTC/USDT";
   const chartContainerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -101,7 +104,7 @@ export default function Chart() {
       <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
         <div className="flex items-center gap-4">
           <h2 className="font-mono text-lg font-semibold text-[var(--text-primary)]">
-            BTC/USDT
+            {pair}
           </h2>
           <span className="font-mono text-[var(--accent-buy)]">$97,432.45</span>
           <span className="text-sm text-[var(--accent-buy)]">+2.34%</span>

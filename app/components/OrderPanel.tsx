@@ -1,8 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+
+function getBaseAsset(pair: string) {
+  return pair.split("/")[0] ?? "BTC";
+}
 
 export default function OrderPanel() {
+  const searchParams = useSearchParams();
+  const pair = searchParams.get("pair")?.replace("-", "/") ?? "BTC/USDT";
+  const baseAsset = getBaseAsset(pair);
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [orderType, setOrderType] = useState("Limit");
 
@@ -61,7 +69,7 @@ export default function OrderPanel() {
           )}
           <div>
             <label className="mb-1 block text-xs text-[var(--text-muted)]">
-              Amount (BTC)
+              Amount ({baseAsset})
             </label>
             <input
               type="text"
@@ -93,7 +101,7 @@ export default function OrderPanel() {
               : "bg-[var(--accent-sell)] text-white"
           }`}
         >
-          {side === "buy" ? "Buy BTC" : "Sell BTC"}
+          {side === "buy" ? `Buy ${baseAsset}` : `Sell ${baseAsset}`}
         </button>
       </div>
     </div>
