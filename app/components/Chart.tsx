@@ -25,7 +25,7 @@ function klinesToCandles(klines: Kline[]): CandlestickData[] {
   }));
 }
 
-const TIMEFRAMES = ["1m", "5m", "15m", "1H", "4H", "1D", "1W"] as const;
+const TIMEFRAMES = ["1s", "15m", "1H", "4H", "1D", "1W"] as const;
 
 /**
  * Time axis label format by timeframe:
@@ -71,6 +71,7 @@ function createTickMarkFormatter(timeframe: string) {
     const pad = (n: number) => n.toString().padStart(2, "0");
 
     switch (timeframe) {
+      case "1s":
       case "1m":
         return `${pad(h)}:${pad(m)}:${pad(s)}`;
       case "5m":
@@ -108,11 +109,11 @@ export default function Chart() {
     () => (tickerData ? { price: tickerData.lastPrice, change: tickerData.priceChangePercent } : null),
     [tickerData]
   );
-  const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("1m");
+  const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("1s");
   const [candles, setCandles] = useState<CandlestickData[]>([]);
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
-  const klinePollMs = timeframe === "1m" || timeframe === "5m" ? 5000 : 10000;
+  const klinePollMs = timeframe === "1s" ? 3000 : 10000;
 
   useEffect(() => {
     const load = async () => {
@@ -159,10 +160,22 @@ export default function Chart() {
       timeScale: {
         borderColor: "#2b3139",
         timeVisible: true,
-        secondsVisible: timeframe === "1m",
+        secondsVisible: timeframe === "1s",
         tickMarkFormatter: createTickMarkFormatter(timeframe),
-        barSpacing: timeframe === "1m" ? 40 : 6,
-        minBarSpacing: timeframe === "1m" ? 20 : 0.5,
+        barSpacing: timeframe === "1s" ? 40 : 6,
+        minBarSpacing: timeframe === "1s" ? 3 : 0.5,
+      },
+      handleScale: {
+        mouseWheel: true,
+        pinch: true,
+        axisPressedMouseMove: true,
+        axisDoubleClickReset: true,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
       },
     });
 

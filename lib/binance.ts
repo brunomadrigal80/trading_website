@@ -89,6 +89,7 @@ export async function fetchOrderBook(symbol: string, limit = 20): Promise<OrderB
 }
 
 const INTERVAL_MAP: Record<string, string> = {
+  "1s": "1s",
   "1m": "1m",
   "5m": "5m",
   "15m": "15m",
@@ -176,7 +177,8 @@ export async function fetchFuturesKlines(
   interval: string,
   limit = 200
 ): Promise<Kline[]> {
-  const binanceInterval = INTERVAL_MAP[interval] ?? "1h";
+  let binanceInterval = INTERVAL_MAP[interval] ?? "1h";
+  if (binanceInterval === "1s") binanceInterval = "1m";
   try {
     const res = await fetch(
       `${BINANCE_FUTURES_API}/klines?symbol=${toSymbol(symbol)}&interval=${binanceInterval}&limit=${limit}`,
