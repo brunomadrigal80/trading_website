@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 function getBaseAsset(pair: string) {
@@ -13,6 +13,18 @@ export default function OrderPanel() {
   const baseAsset = getBaseAsset(pair);
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [orderType, setOrderType] = useState("Limit");
+  const [price, setPrice] = useState("");
+  const [amount, setAmount] = useState("");
+
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ price: number; side: "buy" | "sell" }>) => {
+      const p = e.detail.price;
+      setPrice(p >= 1 ? p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : p.toString());
+      setSide(e.detail.side);
+    };
+    window.addEventListener("orderbook:setPrice", handler as EventListener);
+    return () => window.removeEventListener("orderbook:setPrice", handler as EventListener);
+  }, []);
 
   return (
     <div className="flex flex-col rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
@@ -63,6 +75,8 @@ export default function OrderPanel() {
               <input
                 type="text"
                 placeholder="0.00"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
                 className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-4 py-2.5 font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)] focus:outline-none"
               />
             </div>
@@ -74,6 +88,8 @@ export default function OrderPanel() {
             <input
               type="text"
               placeholder="0.00"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
               className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-tertiary)] px-4 py-2.5 font-mono text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--accent-cyan)] focus:outline-none"
             />
           </div>
@@ -92,7 +108,12 @@ export default function OrderPanel() {
       <div className="p-4">
         <div className="mb-3 flex justify-between text-xs text-[var(--text-muted)]">
           <span>Total</span>
-          <span className="font-mono text-[var(--text-secondary)]">0.00 USDT</span>
+          <span className="font-mono text-[var(--text-secondary)]">
+            {price && amount && !isNaN(parseFloat(price)) && !isNaN(parseFloat(amount))
+              ? (parseFloat(price) * parseFloat(amount)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+              : "0.00"}{" "}
+            USDT
+          </span>
         </div>
         <button
           className={`w-full rounded-lg py-3 font-semibold transition-opacity hover:opacity-90 ${

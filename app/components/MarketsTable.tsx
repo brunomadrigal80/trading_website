@@ -2,6 +2,17 @@
 
 import Link from "next/link";
 
+function formatPrice(price: number): string {
+  if (price >= 1) {
+    return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+}
+
+function toPairParam(symbol: string) {
+  return symbol.replace("/", "-");
+}
+
 const markets = [
   { pair: "BTC/USDT", price: 97432.45, change: 2.34, volume: "28.2B" },
   { pair: "ETH/USDT", price: 3621.28, change: -0.87, volume: "12.1B" },
@@ -37,14 +48,14 @@ export default function MarketsTable() {
             >
               <td className="px-4 py-3">
                 <Link
-                  href="/"
+                  href={`/?pair=${toPairParam(m.pair)}`}
                   className="font-mono font-medium text-[var(--accent-cyan)] hover:underline"
                 >
                   {m.pair}
                 </Link>
               </td>
-              <td className="px-4 py-3 text-right font-mono text-[var(--text-primary)]">
-                ${m.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <td className="min-w-[90px] whitespace-nowrap px-4 py-3 text-right font-mono tabular-nums text-[var(--text-primary)]">
+                ${formatPrice(m.price)}
               </td>
               <td
                 className={`px-4 py-3 text-right font-mono font-medium ${

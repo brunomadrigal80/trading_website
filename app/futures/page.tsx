@@ -7,12 +7,12 @@ import MarketList from "../components/MarketList";
 
 export default function FuturesPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-[var(--bg-primary)]">
+    <div className="flex h-screen flex-col overflow-hidden bg-[var(--bg-primary)]">
       <Header />
       <MarketTicker />
-      <main className="flex flex-1 flex-col gap-4 overflow-auto p-4 lg:flex-row">
-        <aside className="hidden w-52 shrink-0 xl:block">
-          <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4">
+      <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 lg:flex-row">
+        <aside className="hidden min-h-0 w-60 shrink-0 xl:flex xl:flex-col">
+          <div className="shrink-0 rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4">
             <h3 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">
               Positions
             </h3>
@@ -25,12 +25,12 @@ export default function FuturesPage() {
               </p>
             </div>
           </div>
-          <div className="mt-4">
-            <MarketList />
+          <div className="mt-4 min-h-0 flex-1">
+            <OrderBook />
           </div>
         </aside>
-        <div className="min-h-[400px] min-w-0 flex-1">
-          <div className="mb-2 flex items-center gap-2">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="mb-2 flex shrink-0 items-center gap-2">
             <span className="rounded bg-[var(--accent-gold)]/20 px-2 py-0.5 text-xs font-medium text-[var(--accent-gold)]">
               Perpetual
             </span>
@@ -40,7 +40,7 @@ export default function FuturesPage() {
           </div>
           <Chart />
         </div>
-        <aside className="flex shrink-0 flex-col gap-4 lg:w-80">
+        <aside className="flex min-h-0 shrink-0 flex-col gap-4 overflow-hidden lg:w-96">
           <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4">
             <h3 className="mb-3 text-sm font-semibold text-[var(--text-primary)]">
               Leverage
@@ -60,7 +60,7 @@ export default function FuturesPage() {
               ))}
             </div>
           </div>
-          <OrderBook />
+          <MarketList />
           <OrderPanel />
         </aside>
       </main>

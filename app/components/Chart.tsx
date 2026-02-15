@@ -1,45 +1,129 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   createChart,
   CandlestickSeries,
   CandlestickData,
   UTCTimestamp,
+  TickMarkType,
+  Time,
+  isBusinessDay,
+  isUTCTimestamp,
 } from "lightweight-charts";
+import { fetchKlines, fetchTicker24h, type Kline } from "@/lib/binance";
 
-function generateCandles(): CandlestickData[] {
-  const candles: CandlestickData[] = [];
-  let price = 95000;
-  const now = Math.floor(Date.now() / 1000) as UTCTimestamp;
-  const interval = 60;
+function klinesToCandles(klines: Kline[]): CandlestickData[] {
+  return klines.map((k) => ({
+    time: Math.floor(k[0] / 1000) as UTCTimestamp,
+    open: parseFloat(k[1]),
+    high: parseFloat(k[2]),
+    low: parseFloat(k[3]),
+    close: parseFloat(k[4]),
+  }));
+}
 
-  for (let i = 200; i >= 0; i--) {
-    const time = (now - i * interval) as UTCTimestamp;
-    const change = (Math.random() - 0.48) * 400;
-    const open = price;
-    price = Math.max(90000, Math.min(100000, price + change));
-    const close = price;
-    const high = Math.max(open, close) + Math.random() * 100;
-    const low = Math.min(open, close) - Math.random() * 100;
+const TIMEFRAMES = ["1m", "5m", "15m", "1H", "4H", "1D", "1W"] as const;
 
-    candles.push({
-      time,
-      open: Math.round(open * 100) / 100,
-      high: Math.round(high * 100) / 100,
-      low: Math.round(low * 100) / 100,
-      close: Math.round(close * 100) / 100,
-    });
-  }
+/**
+ * Time axis label format by timeframe:
+ * | 1m   | HH:MM:SS          | 05:59, 06:00, 06:01
+ * | 5m   | HH:MM             | 06:00, 06:05, 06:10
+ * | 15m  | HH:MM             | 06:00, 06:15, 06:30
+ * | 1H   | HH:00             | 16:00, 17:00, 18:00
+ * | 4H   | HH:00             | 00:00, 04:00, 08:00
+ * | 1D   | day number        | 21, 22, 23, 24
+ * | 1W   | Nth week of Month | 1st week of Feb, 2nd week of Feb
+ */
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  return candles;
+function getOrdinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] ?? s[v] ?? s[0]);
+}
+
+function getWeekOfMonth(date: Date): number {
+  const day = date.getUTCDate();
+  return Math.ceil(day / 7);
+}
+
+function createTickMarkFormatter(timeframe: string) {
+  return (time: Time, tickMarkType: TickMarkType, _locale: string): string | null => {
+    let date: Date;
+    if (isUTCTimestamp(time)) {
+      date = new Date((time as number) * 1000);
+    } else if (isBusinessDay(time)) {
+      const b = time as { year: number; month: number; day: number };
+      date = new Date(Date.UTC(b.year, b.month - 1, b.day));
+    } else {
+      return null;
+    }
+
+    const h = date.getUTCHours();
+    const m = date.getUTCMinutes();
+    const s = date.getUTCSeconds();
+    const day = date.getUTCDate();
+    const month = date.getUTCMonth();
+
+    const pad = (n: number) => n.toString().padStart(2, "0");
+
+    switch (timeframe) {
+      case "1m":
+        return `${pad(h)}:${pad(m)}:${pad(s)}`;
+      case "5m":
+      case "15m":
+        return `${pad(h)}:${pad(m)}`;
+      case "1H":
+        return `${pad(h)}:00`;
+      case "4H":
+        return `${pad(h)}:00`;
+      case "1D":
+        if (tickMarkType === TickMarkType.DayOfMonth || tickMarkType === TickMarkType.Time) {
+          return day.toString();
+        }
+        if (tickMarkType === TickMarkType.Month) return MONTH_NAMES[month];
+        return day.toString();
+      case "1W":
+        if (tickMarkType === TickMarkType.Year) return date.getUTCFullYear().toString();
+        if (tickMarkType === TickMarkType.Month) return MONTH_NAMES[month];
+        const weekNum = getWeekOfMonth(date);
+        return `${getOrdinal(weekNum)} week of ${MONTH_NAMES[month]}`;
+      default:
+        return null;
+    }
+  };
 }
 
 export default function Chart() {
   const searchParams = useSearchParams();
   const pair = searchParams.get("pair")?.replace("-", "/") ?? "BTC/USDT";
+  const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("1m");
+  const [candles, setCandles] = useState<CandlestickData[]>([]);
+  const [ticker, setTicker] = useState<{ price: string; change: string } | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const data = await fetchKlines(pair, timeframe, timeframe === "1W" ? 100 : 200);
+      if (data.length > 0) setCandles(klinesToCandles(data));
+    };
+    load();
+    const id = setInterval(load, 500);
+    return () => clearInterval(id);
+  }, [pair, timeframe]);
+
+  useEffect(() => {
+    const load = async () => {
+      const t = await fetchTicker24h(pair);
+      if (t) setTicker({ price: t.lastPrice, change: t.priceChangePercent });
+    };
+    load();
+    const id = setInterval(load, 500);
+    return () => clearInterval(id);
+  }, [pair]);
+
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -73,7 +157,10 @@ export default function Chart() {
       timeScale: {
         borderColor: "#2b3139",
         timeVisible: true,
-        secondsVisible: false,
+        secondsVisible: timeframe === "1m",
+        tickMarkFormatter: createTickMarkFormatter(timeframe),
+        barSpacing: timeframe === "1m" ? 40 : 6,
+        minBarSpacing: timeframe === "1m" ? 20 : 0.5,
       },
     });
 
@@ -86,8 +173,7 @@ export default function Chart() {
       wickUpColor: "#0ecb81",
     });
 
-    candlestickSeries.setData(generateCandles());
-
+    candlestickSeries.setData(candles);
     chart.timeScale().fitContent();
 
     const handleResize = () => chart.applyOptions({ width: chartContainerRef.current?.clientWidth });
@@ -97,25 +183,36 @@ export default function Chart() {
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, []);
+  }, [timeframe, candles]);
+
 
   return (
-    <div className="flex flex-col rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
-      <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
+    <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-4 py-3">
         <div className="flex items-center gap-4">
           <h2 className="font-mono text-lg font-semibold text-[var(--text-primary)]">
             {pair}
           </h2>
-          <span className="font-mono text-[var(--accent-buy)]">$97,432.45</span>
-          <span className="text-sm text-[var(--accent-buy)]">+2.34%</span>
+          <span className={`font-mono ${ticker && parseFloat(ticker.change) < 0 ? "text-[var(--accent-sell)]" : "text-[var(--accent-buy)]"}`}>
+            {ticker
+              ? `$${parseFloat(ticker.price) >= 1
+                  ? parseFloat(ticker.price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : parseFloat(ticker.price).toFixed(6)}`
+              : "—"}
+          </span>
+          <span className={`text-sm ${ticker && parseFloat(ticker.change) < 0 ? "text-[var(--accent-sell)]" : "text-[var(--accent-buy)]"}`}>
+            {ticker ? `${parseFloat(ticker.change) >= 0 ? "+" : ""}${parseFloat(ticker.change).toFixed(2)}%` : "—"}
+          </span>
           <span className="text-xs text-[var(--text-muted)]">24h</span>
         </div>
         <div className="flex gap-1">
-          {["1m", "5m", "15m", "1H", "4H", "1D", "1W"].map((tf) => (
+          {TIMEFRAMES.map((tf) => (
             <button
               key={tf}
+              type="button"
+              onClick={() => setTimeframe(tf)}
               className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                tf === "1H"
+                timeframe === tf
                   ? "bg-[var(--accent-cyan)]/20 text-[var(--accent-cyan)]"
                   : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
               }`}
@@ -125,7 +222,7 @@ export default function Chart() {
           ))}
         </div>
       </div>
-      <div ref={chartContainerRef} className="h-[480px] w-full" />
+      <div ref={chartContainerRef} className="min-h-0 flex-1 w-full" />
     </div>
   );
 }
