@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import ContextProvider from "@/context";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -19,17 +21,20 @@ export const metadata: Metadata = {
   description: "Real-time charts, order book, and spot trading",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const headersObj = await headers();
+  const cookies = headersObj.get("cookie");
+
   return (
     <html lang="en" className="dark">
       <body
         className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased`}
       >
-        {children}
+        <ContextProvider cookies={cookies}>{children}</ContextProvider>
       </body>
     </html>
   );

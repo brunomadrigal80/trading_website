@@ -2,6 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
+
+function ConnectWalletButton() {
+  const { open } = useAppKit();
+  const { address, isConnected } = useAppKitAccount();
+  const display = isConnected && address
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : "Connect Wallet";
+  return (
+    <button
+      type="button"
+      onClick={() => open()}
+      className="rounded-lg bg-[var(--accent-cyan)] px-4 py-2 text-sm font-semibold text-[var(--bg-primary)] transition-opacity hover:opacity-90"
+    >
+      {display}
+    </button>
+  );
+}
 
 const navItems = [
   { label: "Markets", href: "/markets" },
@@ -55,9 +73,7 @@ export default function Header() {
           />
           <kbd className="ml-2 text-[10px] text-[var(--text-muted)]">⌘K</kbd>
         </div>
-        <button className="rounded-lg bg-[var(--accent-cyan)] px-4 py-2 text-sm font-semibold text-[var(--bg-primary)] transition-opacity hover:opacity-90">
-          Connect Wallet
-        </button>
+        <ConnectWalletButton />
       </div>
     </header>
   );
