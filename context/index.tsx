@@ -11,10 +11,17 @@ import { TickerProvider } from "./TickerContext";
 
 const queryClient = new QueryClient();
 
+const getAppUrl = () =>
+  typeof window !== "undefined"
+    ? window.location.origin
+    : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
 const metadata = {
   name: "Vertex Trading",
   description: "Professional Trading - Real-time charts and spot trading",
-  url: "http://localhost:3000",
+  get url() {
+    return getAppUrl();
+  },
   icons: ["https://avatars.githubusercontent.com/u/179229932"],
 };
 
