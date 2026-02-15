@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { fetchOrderBook, fetchFuturesOrderBook } from "@/lib/binance";
 
@@ -61,7 +61,7 @@ export default function OrderBook() {
       }
     };
     load();
-    const id = setInterval(load, 2000);
+    const id = setInterval(load, 3000);
     return () => clearInterval(id);
   }, [pair, useFutures]);
 
@@ -80,13 +80,19 @@ export default function OrderBook() {
       .sort((a, b) => a.price - b.price);
   };
 
-  const groupedBids = groupByStep(bids).reverse();
-  const groupedAsks = groupByStep(asks);
+  const groupedBids = useMemo(() => groupByStep(bids).reverse(), [bids, stepNum]);
+  const groupedAsks = useMemo(() => groupByStep(asks), [asks, stepNum]);
   const bestBid = groupedBids[0]?.price;
   const bestAsk = groupedAsks[0]?.price;
   const midPrice = bestBid && bestAsk ? (bestBid + bestAsk) / 2 : 0;
-  const displayMaxBid = Math.max(...groupedBids.map((b) => b.amount), 1);
-  const displayMaxAsk = Math.max(...groupedAsks.map((a) => a.amount), 1);
+  const displayMaxBid = useMemo(
+    () => Math.max(...groupedBids.map((b) => b.amount), 1),
+    [groupedBids]
+  );
+  const displayMaxAsk = useMemo(
+    () => Math.max(...groupedAsks.map((a) => a.amount), 1),
+    [groupedAsks]
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">

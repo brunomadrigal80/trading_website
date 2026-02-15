@@ -1,11 +1,10 @@
 "use client";
 
 import Header from "../components/Header";
-import MarketTicker from "../components/MarketTicker";
-import { useEffect, useState } from "react";
-import { fetchTickers24h, type Ticker24h } from "@/lib/binance";
+import { useTickers } from "@/context/TickerContext";
+import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
 
-const WATCHLIST_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "USDT"];
+const WATCHLIST_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"];
 
 function formatPrice(price: number): string {
   if (price >= 1) {
@@ -15,26 +14,16 @@ function formatPrice(price: number): string {
 }
 
 export default function PortfolioPage() {
-  const [tickers, setTickers] = useState<Ticker24h[]>([]);
-
-  useEffect(() => {
-    const load = async () => {
-      const symbols = WATCHLIST_SYMBOLS.filter((s) => s !== "USDT").map((s) => `${s}USDT`);
-      const data = await fetchTickers24h(symbols);
-      setTickers(data);
-    };
-    load();
-    const id = setInterval(load, 2000);
-    return () => clearInterval(id);
-  }, []);
-
+  const { open } = useAppKit();
+  const { isConnected } = useAppKitAccount();
+  const { getTickersBySymbols } = useTickers();
+  const tickers = getTickersBySymbols(WATCHLIST_SYMBOLS);
   const btcTicker = tickers.find((t) => t.symbol === "BTCUSDT");
   const btcPrice = btcTicker ? parseFloat(btcTicker.lastPrice) : 0;
   const btcChange = btcTicker ? parseFloat(btcTicker.priceChangePercent) : 0;
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bg-primary)]">
       <Header />
-      <MarketTicker />
       <main className="flex flex-1 flex-col gap-6 overflow-auto p-4">
         <h1 className="text-2xl font-semibold text-[var(--text-primary)]">
           Portfolio
@@ -100,8 +89,25 @@ export default function PortfolioPage() {
           <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">
             Open Orders
           </h2>
-          <div className="rounded-lg bg-[var(--bg-tertiary)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-            Connect Binance API keys to view your open orders.
+          <div className="rounded-lg bg-[var(--bg-tertiary)] px-4 py-8 text-center">
+            {isConnected ? (
+              <p className="text-sm text-[var(--text-muted)]">
+                Connect exchange API keys to view your open orders.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-[var(--text-muted)]">
+                  Connect your wallet to manage orders
+                </p>
+                <button
+                  type="button"
+                  onClick={() => open()}
+                  className="mt-4 rounded-lg bg-[var(--accent-cyan)] px-4 py-2 text-sm font-semibold text-[var(--bg-primary)] transition-opacity hover:opacity-90"
+                >
+                  Connect Wallet
+                </button>
+              </>
+            )}
           </div>
         </section>
 
@@ -109,8 +115,25 @@ export default function PortfolioPage() {
           <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">
             Recent Trades
           </h2>
-          <div className="rounded-lg bg-[var(--bg-tertiary)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-            Connect Binance API keys to view your trade history.
+          <div className="rounded-lg bg-[var(--bg-tertiary)] px-4 py-8 text-center">
+            {isConnected ? (
+              <p className="text-sm text-[var(--text-muted)]">
+                Connect exchange API keys to view your trade history.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-[var(--text-muted)]">
+                  Connect your wallet to see recent trades
+                </p>
+                <button
+                  type="button"
+                  onClick={() => open()}
+                  className="mt-4 rounded-lg bg-[var(--accent-cyan)] px-4 py-2 text-sm font-semibold text-[var(--bg-primary)] transition-opacity hover:opacity-90"
+                >
+                  Connect Wallet
+                </button>
+              </>
+            )}
           </div>
         </section>
       </main>

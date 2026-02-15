@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   createChart,
@@ -12,7 +12,8 @@ import {
   isBusinessDay,
   isUTCTimestamp,
 } from "lightweight-charts";
-import { fetchKlines, fetchTicker24h, fetchFuturesKlines, fetchFuturesTicker24h, type Kline } from "@/lib/binance";
+import { fetchKlines, fetchFuturesKlines, type Kline } from "@/lib/binance";
+import { useTickers } from "@/context/TickerContext";
 
 function klinesToCandles(klines: Kline[]): CandlestickData[] {
   return klines.map((k) => ({
@@ -101,10 +102,17 @@ export default function Chart() {
   const searchParams = useSearchParams();
   const pair = searchParams.get("pair")?.replace("-", "/") ?? "BTC/USDT";
   const useFutures = pathname?.includes("/futures") ?? false;
+  const { getTicker } = useTickers();
+  const tickerData = getTicker(pair);
+  const ticker = useMemo(
+    () => (tickerData ? { price: tickerData.lastPrice, change: tickerData.priceChangePercent } : null),
+    [tickerData]
+  );
   const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("1m");
   const [candles, setCandles] = useState<CandlestickData[]>([]);
-  const [ticker, setTicker] = useState<{ price: string; change: string } | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  const klinePollMs = timeframe === "1m" || timeframe === "5m" ? 5000 : 10000;
 
   useEffect(() => {
     const load = async () => {
@@ -114,19 +122,9 @@ export default function Chart() {
       if (data.length > 0) setCandles(klinesToCandles(data));
     };
     load();
-    const id = setInterval(load, 2000);
+    const id = setInterval(load, klinePollMs);
     return () => clearInterval(id);
-  }, [pair, timeframe, useFutures]);
-
-  useEffect(() => {
-    const load = async () => {
-      const t = useFutures ? await fetchFuturesTicker24h(pair) : await fetchTicker24h(pair);
-      if (t) setTicker({ price: t.lastPrice, change: t.priceChangePercent });
-    };
-    load();
-    const id = setInterval(load, 2000);
-    return () => clearInterval(id);
-  }, [pair, useFutures]);
+  }, [pair, timeframe, useFutures, klinePollMs]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;

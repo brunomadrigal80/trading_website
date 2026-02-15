@@ -43,6 +43,17 @@ export async function fetchTicker24h(symbol: string): Promise<Ticker24h | null> 
 }
 
 
+export async function fetchAllTickers24h(): Promise<Ticker24h[]> {
+  try {
+    const res = await fetch(`${BINANCE_API}/ticker/24hr`, fetchOpts);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data.filter((t: Ticker24h) => t?.symbol) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchTickers24h(symbols?: string[]): Promise<Ticker24h[]> {
   try {
     const toFetch = symbols?.length ? symbols.map(toSymbol) : DEFAULT_TICKER_SYMBOLS;
@@ -113,6 +124,17 @@ export async function fetchFuturesTicker24h(symbol: string): Promise<Ticker24h |
     return res.json();
   } catch {
     return null;
+  }
+}
+
+export async function fetchAllFuturesTickers24h(): Promise<Ticker24h[]> {
+  try {
+    const res = await fetch(`${BINANCE_FUTURES_API}/ticker/24hr`, fetchOpts);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data.filter((t: Ticker24h) => t?.symbol) : [];
+  } catch {
+    return [];
   }
 }
 

@@ -1,11 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { fetchTickers24h, type Ticker24h } from "@/lib/binance";
-
-const TICKER_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "AVAX", "LINK", "MATIC", "DOT"];
+import { useTickerBar } from "@/context/TickerContext";
 
 function toPairParam(symbol: string) {
   return symbol.replace("/", "-");
@@ -27,24 +24,8 @@ function formatPrice(price: string): string {
 export default function MarketTicker() {
   const searchParams = useSearchParams();
   const currentPair = searchParams.get("pair")?.replace("-", "/") ?? "BTC/USDT";
-  const [tickers, setTickers] = useState<Ticker24h[]>([]);
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const symbols = TICKER_SYMBOLS.map((s) => `${s}USDT`);
-        const data = await fetchTickers24h(symbols);
-        setTickers(data ?? []);
-      } catch {
-        setTickers([]);
-      }
-    };
-    load();
-    const id = setInterval(load, 2000);
-    return () => clearInterval(id);
-  }, []);
-
-  const pairs = tickers.length > 0 ? tickers : TICKER_SYMBOLS.map((s) => ({ symbol: `${s}USDT`, lastPrice: "—", priceChangePercent: "0" }));
+  const tickers = useTickerBar();
+  const pairs = tickers;
 
   return (
     <div className="flex items-center gap-6 overflow-x-auto border-b border-[var(--border-subtle)] bg-[var(--bg-secondary)] px-4 py-2">

@@ -1,8 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { fetchTickers24h, type Ticker24h } from "@/lib/binance";
+import { useTickers } from "@/context/TickerContext";
 
 function formatPrice(price: number): string {
   if (price >= 1) {
@@ -28,20 +27,8 @@ function formatPair(symbol: string) {
 }
 
 export default function MarketsTable() {
-  const [tickers, setTickers] = useState<Ticker24h[]>([]);
-
-  useEffect(() => {
-    const load = async () => {
-      const data = await fetchTickers24h();
-      const sorted = [...data].sort(
-        (a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)
-      );
-      setTickers(sorted.slice(0, 20));
-    };
-    load();
-    const id = setInterval(load, 2000);
-    return () => clearInterval(id);
-  }, []);
+  const { topByVolume } = useTickers();
+  const tickers = topByVolume(20);
 
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">

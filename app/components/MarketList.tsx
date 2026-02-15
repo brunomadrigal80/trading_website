@@ -1,11 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
-import { fetchTickers24h, fetchFuturesTickers24h, type Ticker24h } from "@/lib/binance";
-
-const TICKER_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "AVAX", "LINK", "MATIC", "DOT"];
+import { useTickerBar } from "@/context/TickerContext";
 
 function formatPrice(price: number): string {
   if (price >= 1) {
@@ -24,25 +21,8 @@ function formatPair(symbol: string) {
 
 export default function MarketList() {
   const pathname = usePathname();
-  const [tickers, setTickers] = useState<Ticker24h[]>([]);
   const useFutures = pathname?.includes("/futures") ?? false;
-
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const symbols = TICKER_SYMBOLS.map((s) => `${s}USDT`);
-        const data = useFutures ? await fetchFuturesTickers24h(symbols) : await fetchTickers24h(symbols);
-        setTickers(data ?? []);
-      } catch {
-        setTickers([]);
-      }
-    };
-    load();
-    const id = setInterval(load, 2000);
-    return () => clearInterval(id);
-  }, [useFutures]);
-
-  const pairs = tickers.length > 0 ? tickers : TICKER_SYMBOLS.map((s) => ({ symbol: `${s}USDT`, lastPrice: "—", priceChangePercent: "0" }));
+  const pairs = useTickerBar();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
