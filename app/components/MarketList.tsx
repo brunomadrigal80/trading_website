@@ -29,12 +29,16 @@ export default function MarketList() {
 
   useEffect(() => {
     const load = async () => {
-      const symbols = TICKER_SYMBOLS.map((s) => `${s}USDT`);
-      const data = useFutures ? await fetchFuturesTickers24h(symbols) : await fetchTickers24h(symbols);
-      setTickers(data);
+      try {
+        const symbols = TICKER_SYMBOLS.map((s) => `${s}USDT`);
+        const data = useFutures ? await fetchFuturesTickers24h(symbols) : await fetchTickers24h(symbols);
+        setTickers(data ?? []);
+      } catch {
+        setTickers([]);
+      }
     };
     load();
-    const id = setInterval(load, 500);
+    const id = setInterval(load, 2000);
     return () => clearInterval(id);
   }, [useFutures]);
 

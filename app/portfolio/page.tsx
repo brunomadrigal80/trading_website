@@ -24,7 +24,7 @@ export default function PortfolioPage() {
       setTickers(data);
     };
     load();
-    const id = setInterval(load, 500);
+    const id = setInterval(load, 2000);
     return () => clearInterval(id);
   }, []);
 

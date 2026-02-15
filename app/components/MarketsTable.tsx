@@ -39,7 +39,7 @@ export default function MarketsTable() {
       setTickers(sorted.slice(0, 20));
     };
     load();
-    const id = setInterval(load, 500);
+    const id = setInterval(load, 2000);
     return () => clearInterval(id);
   }, []);
 

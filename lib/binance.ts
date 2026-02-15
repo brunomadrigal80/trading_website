@@ -23,6 +23,13 @@ function toSymbol(pair: string): string {
   return pair.replace("/", "");
 }
 
+const DEFAULT_TICKER_SYMBOLS = [
+  "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT",
+  "AVAXUSDT", "LINKUSDT", "MATICUSDT", "DOTUSDT", "ADAUSDT", "ATOMUSDT",
+  "LTCUSDT", "UNIUSDT", "ETCUSDT", "APTUSDT", "ARBUSDT", "OPUSDT",
+  "FILUSDT", "INJUSDT", "SUIUSDT", "NEARUSDT", "STXUSDT",
+];
+
 const fetchOpts: RequestInit = { cache: "no-store" };
 
 export async function fetchTicker24h(symbol: string): Promise<Ticker24h | null> {
@@ -35,18 +42,20 @@ export async function fetchTicker24h(symbol: string): Promise<Ticker24h | null> 
   }
 }
 
+
 export async function fetchTickers24h(symbols?: string[]): Promise<Ticker24h[]> {
   try {
-    const res = await fetch(`${BINANCE_API}/ticker/24hr`, fetchOpts);
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (!Array.isArray(data)) return [];
-    const usdt = data.filter((t: Ticker24h) => t?.symbol?.endsWith?.("USDT"));
-    if (symbols?.length) {
-      const set = new Set(symbols.map(toSymbol));
-      return usdt.filter((t) => set.has(t.symbol));
-    }
-    return usdt.slice(0, 15);
+    const toFetch = symbols?.length ? symbols.map(toSymbol) : DEFAULT_TICKER_SYMBOLS;
+    const results = await Promise.all(
+      toFetch.map((s) =>
+        fetch(`${BINANCE_API}/ticker/24hr?symbol=${s}`, fetchOpts)
+          .then((res) => (res.ok ? res.json() : null))
+          .catch(() => null)
+      )
+    );
+    const tickers = results.filter((t): t is Ticker24h => t != null && t.symbol);
+    if (symbols?.length) return tickers;
+    return tickers.sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 20);
   } catch {
     return [];
   }
@@ -109,16 +118,16 @@ export async function fetchFuturesTicker24h(symbol: string): Promise<Ticker24h |
 
 export async function fetchFuturesTickers24h(symbols?: string[]): Promise<Ticker24h[]> {
   try {
-    const res = await fetch(`${BINANCE_FUTURES_API}/ticker/24hr`, fetchOpts);
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (!Array.isArray(data)) return [];
-    const usdt = data.filter((t: Ticker24h) => t?.symbol?.endsWith?.("USDT"));
-    if (symbols?.length) {
-      const set = new Set(symbols.map(toSymbol));
-      return usdt.filter((t) => set.has(t.symbol));
-    }
-    return usdt.slice(0, 15);
+    const toFetch = symbols?.length ? symbols.map(toSymbol) : DEFAULT_TICKER_SYMBOLS;
+    const results = await Promise.all(
+      toFetch.map((s) =>
+        fetch(`${BINANCE_FUTURES_API}/ticker/24hr?symbol=${s}`, fetchOpts)
+          .then((res) => (res.ok ? res.json() : null))
+          .catch(() => null)
+      )
+    );
+    const tickers = results.filter((t): t is Ticker24h => t != null && t.symbol);
+    return symbols?.length ? tickers : tickers.slice(0, 15);
   } catch {
     return [];
   }

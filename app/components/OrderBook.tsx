@@ -61,7 +61,7 @@ export default function OrderBook() {
       }
     };
     load();
-    const id = setInterval(load, 500);
+    const id = setInterval(load, 2000);
     return () => clearInterval(id);
   }, [pair, useFutures]);
 

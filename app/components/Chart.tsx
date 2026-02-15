@@ -114,7 +114,7 @@ export default function Chart() {
       if (data.length > 0) setCandles(klinesToCandles(data));
     };
     load();
-    const id = setInterval(load, 500);
+    const id = setInterval(load, 2000);
     return () => clearInterval(id);
   }, [pair, timeframe, useFutures]);
 
@@ -124,7 +124,7 @@ export default function Chart() {
       if (t) setTicker({ price: t.lastPrice, change: t.priceChangePercent });
     };
     load();
-    const id = setInterval(load, 500);
+    const id = setInterval(load, 2000);
     return () => clearInterval(id);
   }, [pair, useFutures]);
 
