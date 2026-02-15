@@ -18,6 +18,7 @@ function formatPair(symbol: string) {
 
 function formatPrice(price: string): string {
   const n = parseFloat(price);
+  if (!Number.isFinite(n)) return "—";
   if (n >= 1000) return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   if (n >= 1) return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
@@ -48,6 +49,7 @@ export default function MarketTicker() {
         const href = `/?pair=${toPairParam(pairStr)}`;
         const isActive = currentPair === pairStr;
         const change = parseFloat(t.priceChangePercent);
+        const changeStr = Number.isFinite(change) ? `${change >= 0 ? "+" : ""}${change.toFixed(2)}%` : "—";
 
         return (
           <Link
@@ -61,11 +63,10 @@ export default function MarketTicker() {
             <span className="font-mono text-sm text-[var(--text-secondary)]">${formatPrice(t.lastPrice)}</span>
             <span
               className={`font-mono text-xs font-medium ${
-                change >= 0 ? "text-[var(--accent-buy)]" : "text-[var(--accent-sell)]"
+                Number.isFinite(change) && change >= 0 ? "text-[var(--accent-buy)]" : "text-[var(--accent-sell)]"
               }`}
             >
-              {change >= 0 ? "+" : ""}
-              {t.priceChangePercent}%
+              {changeStr}
             </span>
           </Link>
         );

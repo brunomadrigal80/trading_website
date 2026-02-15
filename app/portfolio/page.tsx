@@ -1,24 +1,36 @@
+"use client";
+
 import Header from "../components/Header";
 import MarketTicker from "../components/MarketTicker";
+import { useEffect, useState } from "react";
+import { fetchTickers24h, type Ticker24h } from "@/lib/binance";
 
-const balances = [
-  { asset: "USDT", total: 12500.0, available: 10234.56 },
-  { asset: "BTC", total: 0.1245, available: 0.1245 },
-  { asset: "ETH", total: 2.34, available: 2.34 },
-];
+const WATCHLIST_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "USDT"];
 
-const openOrders = [
-  { pair: "BTC/USDT", side: "Buy", type: "Limit", price: 96000, amount: 0.05, filled: "0%" },
-  { pair: "ETH/USDT", side: "Sell", type: "Limit", price: 3700, amount: 1.0, filled: "0%" },
-];
-
-const recentTrades = [
-  { pair: "BTC/USDT", side: "Buy", price: 97120, amount: 0.02, time: "2 min ago" },
-  { pair: "SOL/USDT", side: "Sell", price: 218.5, amount: 5, time: "15 min ago" },
-  { pair: "ETH/USDT", side: "Buy", price: 3610, amount: 0.5, time: "1 hr ago" },
-];
+function formatPrice(price: number): string {
+  if (price >= 1) {
+    return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+}
 
 export default function PortfolioPage() {
+  const [tickers, setTickers] = useState<Ticker24h[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      const symbols = WATCHLIST_SYMBOLS.filter((s) => s !== "USDT").map((s) => `${s}USDT`);
+      const data = await fetchTickers24h(symbols);
+      setTickers(data);
+    };
+    load();
+    const id = setInterval(load, 500);
+    return () => clearInterval(id);
+  }, []);
+
+  const btcTicker = tickers.find((t) => t.symbol === "BTCUSDT");
+  const btcPrice = btcTicker ? parseFloat(btcTicker.lastPrice) : 0;
+  const btcChange = btcTicker ? parseFloat(btcTicker.priceChangePercent) : 0;
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bg-primary)]">
       <Header />
@@ -31,45 +43,56 @@ export default function PortfolioPage() {
         <div className="grid gap-6 lg:grid-cols-3">
           <section className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4 lg:col-span-2">
             <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">
-              Asset Balances
+              Market Overview
             </h2>
             <div className="space-y-2">
-              {balances.map((b) => (
-                <div
-                  key={b.asset}
-                  className="flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-4 py-3"
-                >
-                  <span className="font-mono font-medium text-[var(--text-primary)]">
-                    {b.asset}
-                  </span>
-                  <div className="text-right">
-                    <div className="font-mono text-[var(--text-primary)]">
-                      {b.total.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 8,
-                      })}
-                    </div>
-                    <div className="text-xs text-[var(--text-muted)]">
-                      Available:{" "}
-                      {b.available.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 8,
-                      })}
-                    </div>
-                  </div>
+              {tickers.length === 0 ? (
+                <div className="rounded-lg bg-[var(--bg-tertiary)] px-4 py-6 text-center text-[var(--text-muted)]">
+                  Loading…
                 </div>
-              ))}
+              ) : (
+                tickers.map((t) => {
+                  const pair = t.symbol.replace("USDT", "/USDT");
+                  const price = parseFloat(t.lastPrice);
+                  const change = parseFloat(t.priceChangePercent);
+                  return (
+                    <div
+                      key={t.symbol}
+                      className="flex items-center justify-between rounded-lg bg-[var(--bg-tertiary)] px-4 py-3"
+                    >
+                      <span className="font-mono font-medium text-[var(--text-primary)]">
+                        {pair}
+                      </span>
+                      <div className="text-right">
+                        <div className="font-mono text-[var(--text-primary)]">
+                          ${formatPrice(price)}
+                        </div>
+                        <div
+                          className={`text-xs font-medium ${
+                            change >= 0 ? "text-[var(--accent-buy)]" : "text-[var(--accent-sell)]"
+                          }`}
+                        >
+                          {change >= 0 ? "+" : ""}
+                          {change.toFixed(2)}% 24h
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </section>
 
           <section className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4">
             <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">
-              Total Balance
+              BTC Price
             </h2>
-            <div className="text-3xl font-bold text-[var(--accent-cyan)]">
-              $24,892.45
+            <div className={`text-3xl font-bold ${btcChange >= 0 ? "text-[var(--accent-buy)]" : "text-[var(--accent-sell)]"}`}>
+              {btcPrice > 0 ? `$${formatPrice(btcPrice)}` : "—"}
             </div>
-            <div className="mt-2 text-sm text-[var(--accent-buy)]">+2.34% 24h</div>
+            <div className={`mt-2 text-sm ${btcChange >= 0 ? "text-[var(--accent-buy)]" : "text-[var(--accent-sell)]"}`}>
+              {!isNaN(btcChange) ? `${btcChange >= 0 ? "+" : ""}${btcChange.toFixed(2)}% 24h` : "—"}
+            </div>
           </section>
         </div>
 
@@ -77,51 +100,8 @@ export default function PortfolioPage() {
           <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">
             Open Orders
           </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[var(--text-muted)]">
-                  <th className="pb-2">Pair</th>
-                  <th className="pb-2">Side</th>
-                  <th className="pb-2">Type</th>
-                  <th className="pb-2">Price</th>
-                  <th className="pb-2">Amount</th>
-                  <th className="pb-2">Filled</th>
-                  <th className="pb-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {openOrders.map((o, i) => (
-                  <tr key={i} className="border-t border-[var(--border-subtle)]">
-                    <td className="py-3 font-mono text-[var(--text-primary)]">
-                      {o.pair}
-                    </td>
-                    <td
-                      className={
-                        o.side === "Buy"
-                          ? "text-[var(--accent-buy)]"
-                          : "text-[var(--accent-sell)]"
-                      }
-                    >
-                      {o.side}
-                    </td>
-                    <td className="text-[var(--text-secondary)]">{o.type}</td>
-                    <td className="font-mono text-[var(--text-secondary)]">
-                      {o.price.toLocaleString()}
-                    </td>
-                    <td className="font-mono text-[var(--text-secondary)]">
-                      {o.amount}
-                    </td>
-                    <td className="text-[var(--text-muted)]">{o.filled}</td>
-                    <td>
-                      <button className="text-[var(--accent-sell)] hover:underline">
-                        Cancel
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="rounded-lg bg-[var(--bg-tertiary)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+            Connect Binance API keys to view your open orders.
           </div>
         </section>
 
@@ -129,46 +109,8 @@ export default function PortfolioPage() {
           <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">
             Recent Trades
           </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[var(--text-muted)]">
-                  <th className="pb-2">Pair</th>
-                  <th className="pb-2">Side</th>
-                  <th className="pb-2">Price</th>
-                  <th className="pb-2">Amount</th>
-                  <th className="pb-2">Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentTrades.map((t, i) => (
-                  <tr
-                    key={i}
-                    className="border-t border-[var(--border-subtle)]"
-                  >
-                    <td className="py-3 font-mono text-[var(--text-primary)]">
-                      {t.pair}
-                    </td>
-                    <td
-                      className={
-                        t.side === "Buy"
-                          ? "text-[var(--accent-buy)]"
-                          : "text-[var(--accent-sell)]"
-                      }
-                    >
-                      {t.side}
-                    </td>
-                    <td className="font-mono text-[var(--text-secondary)]">
-                      {t.price.toLocaleString()}
-                    </td>
-                    <td className="font-mono text-[var(--text-secondary)]">
-                      {t.amount}
-                    </td>
-                    <td className="text-[var(--text-muted)]">{t.time}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="rounded-lg bg-[var(--bg-tertiary)] px-4 py-8 text-center text-sm text-[var(--text-muted)]">
+            Connect Binance API keys to view your trade history.
           </div>
         </section>
       </main>

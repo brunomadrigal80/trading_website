@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { fetchTickers24h, type Ticker24h } from "@/lib/binance";
 
 function formatPrice(price: number): string {
   if (price >= 1) {
@@ -9,26 +11,38 @@ function formatPrice(price: number): string {
   return price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 }
 
+function formatVolume(quoteVolume: string): string {
+  const v = parseFloat(quoteVolume);
+  if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+  return v.toFixed(0);
+}
+
 function toPairParam(symbol: string) {
   return symbol.replace("/", "-");
 }
 
-const markets = [
-  { pair: "BTC/USDT", price: 97432.45, change: 2.34, volume: "28.2B" },
-  { pair: "ETH/USDT", price: 3621.28, change: -0.87, volume: "12.1B" },
-  { pair: "SOL/USDT", price: 218.94, change: 5.12, volume: "3.4B" },
-  { pair: "BNB/USDT", price: 642.11, change: 1.22, volume: "1.2B" },
-  { pair: "XRP/USDT", price: 2.34, change: -2.15, volume: "2.8B" },
-  { pair: "DOGE/USDT", price: 0.42, change: 8.45, volume: "1.9B" },
-  { pair: "AVAX/USDT", price: 38.92, change: 3.67, volume: "0.5B" },
-  { pair: "LINK/USDT", price: 14.21, change: -1.09, volume: "0.6B" },
-  { pair: "MATIC/USDT", price: 0.89, change: 4.33, volume: "0.4B" },
-  { pair: "DOT/USDT", price: 7.45, change: -0.56, volume: "0.3B" },
-  { pair: "ADA/USDT", price: 0.58, change: 1.12, volume: "0.8B" },
-  { pair: "ATOM/USDT", price: 9.21, change: -0.34, volume: "0.2B" },
-];
+function formatPair(symbol: string) {
+  return symbol.replace("USDT", "/USDT");
+}
 
 export default function MarketsTable() {
+  const [tickers, setTickers] = useState<Ticker24h[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      const data = await fetchTickers24h();
+      const sorted = [...data].sort(
+        (a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)
+      );
+      setTickers(sorted.slice(0, 20));
+    };
+    load();
+    const id = setInterval(load, 500);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div className="overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)]">
       <table className="w-full">
@@ -41,35 +55,48 @@ export default function MarketsTable() {
           </tr>
         </thead>
         <tbody>
-          {markets.map((m) => (
-            <tr
-              key={m.pair}
-              className="border-b border-[var(--border-subtle)] last:border-0 transition-colors hover:bg-[var(--bg-tertiary)]"
-            >
-              <td className="px-4 py-3">
-                <Link
-                  href={`/?pair=${toPairParam(m.pair)}`}
-                  className="font-mono font-medium text-[var(--accent-cyan)] hover:underline"
-                >
-                  {m.pair}
-                </Link>
-              </td>
-              <td className="min-w-[90px] whitespace-nowrap px-4 py-3 text-right font-mono tabular-nums text-[var(--text-primary)]">
-                ${formatPrice(m.price)}
-              </td>
-              <td
-                className={`px-4 py-3 text-right font-mono font-medium ${
-                  m.change >= 0 ? "text-[var(--accent-buy)]" : "text-[var(--accent-sell)]"
-                }`}
-              >
-                {m.change >= 0 ? "+" : ""}
-                {m.change}%
-              </td>
-              <td className="px-4 py-3 text-right font-mono text-[var(--text-secondary)]">
-                {m.volume}
+          {tickers.length === 0 ? (
+            <tr>
+              <td colSpan={4} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                Loading…
               </td>
             </tr>
-          ))}
+          ) : (
+            tickers.map((t) => {
+              const pair = formatPair(t.symbol);
+              const price = parseFloat(t.lastPrice);
+              const change = parseFloat(t.priceChangePercent);
+              return (
+                <tr
+                  key={t.symbol}
+                  className="border-b border-[var(--border-subtle)] last:border-0 transition-colors hover:bg-[var(--bg-tertiary)]"
+                >
+                  <td className="px-4 py-3">
+                    <Link
+                      href={`/?pair=${toPairParam(pair)}`}
+                      className="font-mono font-medium text-[var(--accent-cyan)] hover:underline"
+                    >
+                      {pair}
+                    </Link>
+                  </td>
+                  <td className="min-w-[90px] whitespace-nowrap px-4 py-3 text-right font-mono tabular-nums text-[var(--text-primary)]">
+                    ${formatPrice(price)}
+                  </td>
+                  <td
+                    className={`px-4 py-3 text-right font-mono font-medium ${
+                      change >= 0 ? "text-[var(--accent-buy)]" : "text-[var(--accent-sell)]"
+                    }`}
+                  >
+                    {change >= 0 ? "+" : ""}
+                    {change.toFixed(2)}%
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono text-[var(--text-secondary)]">
+                    {formatVolume(t.quoteVolume)}
+                  </td>
+                </tr>
+              );
+            })
+          )}
         </tbody>
       </table>
     </div>

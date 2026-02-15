@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BINANCE_API = "https://api.binance.com/api/v3";
+const BINANCE_FUTURES_API = "https://fapi.binance.com/fapi/v1";
 
 export async function GET(
   request: NextRequest,
@@ -9,7 +9,7 @@ export async function GET(
   const { path } = await params;
   const subPath = path?.join("/") ?? "";
   const searchParams = request.nextUrl.searchParams.toString();
-  const url = `${BINANCE_API}/${subPath}${searchParams ? `?${searchParams}` : ""}`;
+  const url = `${BINANCE_FUTURES_API}/${subPath}${searchParams ? `?${searchParams}` : ""}`;
 
   try {
     const res = await fetch(url, {
@@ -26,6 +26,6 @@ export async function GET(
     }
     return NextResponse.json(data);
   } catch {
-    return NextResponse.json({ error: "Failed to fetch from Binance" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch from Binance Futures" }, { status: 500 });
   }
 }

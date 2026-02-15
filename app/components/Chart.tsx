@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   createChart,
   CandlestickSeries,
@@ -12,7 +12,7 @@ import {
   isBusinessDay,
   isUTCTimestamp,
 } from "lightweight-charts";
-import { fetchKlines, fetchTicker24h, type Kline } from "@/lib/binance";
+import { fetchKlines, fetchTicker24h, fetchFuturesKlines, fetchFuturesTicker24h, type Kline } from "@/lib/binance";
 
 function klinesToCandles(klines: Kline[]): CandlestickData[] {
   return klines.map((k) => ({
@@ -97,8 +97,10 @@ function createTickMarkFormatter(timeframe: string) {
 }
 
 export default function Chart() {
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const pair = searchParams.get("pair")?.replace("-", "/") ?? "BTC/USDT";
+  const useFutures = pathname?.includes("/futures") ?? false;
   const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("1m");
   const [candles, setCandles] = useState<CandlestickData[]>([]);
   const [ticker, setTicker] = useState<{ price: string; change: string } | null>(null);
@@ -106,23 +108,25 @@ export default function Chart() {
 
   useEffect(() => {
     const load = async () => {
-      const data = await fetchKlines(pair, timeframe, timeframe === "1W" ? 100 : 200);
+      const data = useFutures
+        ? await fetchFuturesKlines(pair, timeframe, timeframe === "1W" ? 100 : 200)
+        : await fetchKlines(pair, timeframe, timeframe === "1W" ? 100 : 200);
       if (data.length > 0) setCandles(klinesToCandles(data));
     };
     load();
     const id = setInterval(load, 500);
     return () => clearInterval(id);
-  }, [pair, timeframe]);
+  }, [pair, timeframe, useFutures]);
 
   useEffect(() => {
     const load = async () => {
-      const t = await fetchTicker24h(pair);
+      const t = useFutures ? await fetchFuturesTicker24h(pair) : await fetchTicker24h(pair);
       if (t) setTicker({ price: t.lastPrice, change: t.priceChangePercent });
     };
     load();
     const id = setInterval(load, 500);
     return () => clearInterval(id);
-  }, [pair]);
+  }, [pair, useFutures]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -193,15 +197,16 @@ export default function Chart() {
           <h2 className="font-mono text-lg font-semibold text-[var(--text-primary)]">
             {pair}
           </h2>
-          <span className={`font-mono ${ticker && parseFloat(ticker.change) < 0 ? "text-[var(--accent-sell)]" : "text-[var(--accent-buy)]"}`}>
+          <span className={`font-mono ${ticker && !Number.isNaN(parseFloat(ticker.change)) && parseFloat(ticker.change) < 0 ? "text-[var(--accent-sell)]" : "text-[var(--accent-buy)]"}`}>
             {ticker
-              ? `$${parseFloat(ticker.price) >= 1
-                  ? parseFloat(ticker.price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                  : parseFloat(ticker.price).toFixed(6)}`
+              ? (() => {
+                  const p = parseFloat(ticker.price);
+                  return Number.isNaN(p) ? "—" : p >= 1 ? `$${p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `$${p.toFixed(6)}`;
+                })()
               : "—"}
           </span>
-          <span className={`text-sm ${ticker && parseFloat(ticker.change) < 0 ? "text-[var(--accent-sell)]" : "text-[var(--accent-buy)]"}`}>
-            {ticker ? `${parseFloat(ticker.change) >= 0 ? "+" : ""}${parseFloat(ticker.change).toFixed(2)}%` : "—"}
+          <span className={`text-sm ${ticker && !Number.isNaN(parseFloat(ticker.change)) && parseFloat(ticker.change) < 0 ? "text-[var(--accent-sell)]" : "text-[var(--accent-buy)]"}`}>
+            {ticker ? (() => { const c = parseFloat(ticker.change); return Number.isNaN(c) ? "—" : `${c >= 0 ? "+" : ""}${c.toFixed(2)}%`; })() : "—"}
           </span>
           <span className="text-xs text-[var(--text-muted)]">24h</span>
         </div>
