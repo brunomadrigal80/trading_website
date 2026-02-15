@@ -5,6 +5,9 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   createChart,
   CandlestickSeries,
+  LineSeries,
+  AreaSeries,
+  BarSeries,
   CandlestickData,
   UTCTimestamp,
   TickMarkType,
@@ -23,6 +26,45 @@ function klinesToCandles(klines: Kline[]): CandlestickData[] {
     low: parseFloat(k[3]),
     close: parseFloat(k[4]),
   }));
+}
+
+function candlesToLineData(candles: CandlestickData[]) {
+  return candles.map((c) => ({ time: c.time, value: c.close }));
+}
+
+const CHART_TYPES = [
+  { id: "candles" as const, label: "Candles" },
+  { id: "line" as const, label: "Line" },
+  { id: "bars" as const, label: "Bars" },
+  { id: "area" as const, label: "Area" },
+] as const;
+
+function ChartTypeIcon({ type }: { type: (typeof CHART_TYPES)[number]["id"] }) {
+  const className = "h-4 w-4 text-[var(--text-secondary)]";
+  if (type === "candles")
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M8 4v16M8 8h4l-2 8h4M16 8v12M16 12h4l-2 8h4" />
+      </svg>
+    );
+  if (type === "line")
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M4 18l4-6 4 2 8-10" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  if (type === "bars")
+    return (
+      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M6 16v-8M10 16V8M14 16v-4M18 16V4" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M4 18l4-6 4 2 8-10" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4 18l4-6 4 2 8-10L20 18H4z" fill="currentColor" fillOpacity="0.15" stroke="none" />
+    </svg>
+  );
 }
 
 const TIMEFRAMES = ["1s", "15m", "1H", "4H", "1D", "1W"] as const;
@@ -110,8 +152,21 @@ export default function Chart() {
     [tickerData]
   );
   const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("1s");
+  const [chartType, setChartType] = useState<(typeof CHART_TYPES)[number]["id"]>("candles");
+  const [chartTypeOpen, setChartTypeOpen] = useState(false);
   const [candles, setCandles] = useState<CandlestickData[]>([]);
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartTypeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (chartTypeRef.current && !chartTypeRef.current.contains(event.target as Node)) {
+        setChartTypeOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const klinePollMs = timeframe === "1s" ? 3000 : 10000;
 
@@ -179,16 +234,37 @@ export default function Chart() {
       },
     });
 
-    const candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#0ecb81",
-      downColor: "#f6465d",
-      borderDownColor: "#f6465d",
-      borderUpColor: "#0ecb81",
-      wickDownColor: "#f6465d",
-      wickUpColor: "#0ecb81",
-    });
+    const seriesOptions = {
+      candlestick: {
+        upColor: "#0ecb81",
+        downColor: "#f6465d",
+        borderDownColor: "#f6465d",
+        borderUpColor: "#0ecb81",
+        wickDownColor: "#f6465d",
+        wickUpColor: "#0ecb81",
+      },
+      line: { color: "#0ab3e6", lineWidth: 2 as const },
+      area: { lineColor: "#0ab3e6", topColor: "rgba(10, 179, 230, 0.4)", bottomColor: "rgba(10, 179, 230, 0)" },
+      bars: {
+        upColor: "#0ecb81",
+        downColor: "#f6465d",
+      },
+    };
 
-    candlestickSeries.setData(candles);
+    let series;
+    if (chartType === "candles") {
+      series = chart.addSeries(CandlestickSeries, seriesOptions.candlestick);
+      series.setData(candles);
+    } else if (chartType === "line") {
+      series = chart.addSeries(LineSeries, seriesOptions.line);
+      series.setData(candlesToLineData(candles));
+    } else if (chartType === "area") {
+      series = chart.addSeries(AreaSeries, seriesOptions.area);
+      series.setData(candlesToLineData(candles));
+    } else {
+      series = chart.addSeries(BarSeries, seriesOptions.bars);
+      series.setData(candles);
+    }
     chart.timeScale().fitContent();
 
     const handleResize = () => chart.applyOptions({ width: chartContainerRef.current?.clientWidth });
@@ -198,7 +274,7 @@ export default function Chart() {
       window.removeEventListener("resize", handleResize);
       chart.remove();
     };
-  }, [timeframe, candles]);
+  }, [timeframe, candles, chartType]);
 
 
   return (
@@ -221,7 +297,46 @@ export default function Chart() {
           </span>
           <span className="text-xs text-[var(--text-muted)]">24h</span>
         </div>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-3">
+          <div className="relative" ref={chartTypeRef}>
+            <button
+              type="button"
+              onClick={() => setChartTypeOpen(!chartTypeOpen)}
+              className="flex items-center gap-2 rounded border border-[var(--border)] bg-[var(--bg-tertiary)] px-2.5 py-1.5 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--accent-cyan)] hover:bg-[var(--bg-elevated)]"
+            >
+              <ChartTypeIcon type={chartType} />
+              <span>{CHART_TYPES.find((t) => t.id === chartType)?.label ?? chartType}</span>
+              <svg className={`h-3 w-3 transition-transform ${chartTypeOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {chartTypeOpen && (
+              <div className="absolute right-0 top-full z-20 mt-1 min-w-[140px] rounded border border-[var(--border)] bg-[var(--bg-elevated)] py-1 shadow-lg">
+                {CHART_TYPES.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      setChartType(t.id);
+                      setChartTypeOpen(false);
+                    }}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-xs font-medium transition-colors hover:bg-[var(--bg-tertiary)]"
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChartTypeIcon type={t.id} />
+                      <span className="text-[var(--text-primary)]">{t.label}</span>
+                    </div>
+                    {chartType === t.id && (
+                      <svg className="h-4 w-4 text-[var(--accent-cyan)]" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex gap-1">
           {TIMEFRAMES.map((tf) => (
             <button
               key={tf}
@@ -236,6 +351,7 @@ export default function Chart() {
               {tf}
             </button>
           ))}
+          </div>
         </div>
       </div>
       <div ref={chartContainerRef} className="min-h-0 flex-1 w-full" />
