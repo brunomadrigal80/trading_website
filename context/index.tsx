@@ -6,6 +6,7 @@ import { createAppKit } from "@reown/appkit/react";
 import { mainnet, arbitrum } from "@reown/appkit/networks";
 import React, { type ReactNode } from "react";
 import { cookieToInitialState, WagmiProvider, type Config } from "wagmi";
+import { Toaster } from "sonner";
 import { TickerProvider } from "./TickerContext";
 
 const queryClient = new QueryClient();
@@ -42,7 +43,10 @@ export default function ContextProvider({
   return (
     <WagmiProvider config={wagmiAdapter.wagmiConfig as Config} initialState={initialState} reconnectOnMount>
       <QueryClientProvider client={queryClient}>
-        <TickerProvider>{children}</TickerProvider>
+        <TickerProvider>
+          {children}
+          <Toaster theme="dark" />
+        </TickerProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

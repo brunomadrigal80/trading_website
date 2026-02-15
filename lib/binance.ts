@@ -89,6 +89,7 @@ export async function fetchOrderBook(symbol: string, limit = 20): Promise<OrderB
 }
 
 const INTERVAL_MAP: Record<string, string> = {
+  "0.25s": "1s",
   "1s": "1s",
   "1m": "1m",
   "5m": "5m",
