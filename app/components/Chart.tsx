@@ -16,7 +16,7 @@ import {
   isBusinessDay,
   isUTCTimestamp,
 } from "lightweight-charts";
-import { fetchKlines, fetchFuturesKlines, fetchTicker24h, fetchFuturesTicker24h, type Kline } from "@/lib/binance";
+import { fetchKlines, fetchFuturesKlines, fetchTicker24h, fetchFuturesTicker24h, type Kline } from "@/lib/kucoin";
 import { useTickers } from "@/context/TickerContext";
 
 function klinesToCandles(klines: Kline[]): CandlestickData[] {
@@ -201,23 +201,12 @@ export default function Chart() {
     };
   }, [pair, timeframe, useFutures, klinePollMs]);
 
+  // Create chart once on mount; remove only on unmount to avoid "Object is disposed" from library paint after remove
   useEffect(() => {
-    if (!chartContainerRef.current) return;
+    const container = chartContainerRef.current;
+    if (!container) return;
 
-    const prevChart = chartRef.current;
-    chartRef.current = null;
-    seriesRef.current = null;
-    if (prevChart) {
-      requestAnimationFrame(() => {
-        try {
-          prevChart.remove();
-        } catch {
-          // Chart may already be disposed
-        }
-      });
-    }
-
-    const chart = createChart(chartContainerRef.current, {
+    const chart = createChart(container, {
       layout: {
         background: { color: "transparent" },
         textColor: "#848e9c",
@@ -247,10 +236,6 @@ export default function Chart() {
       timeScale: {
         borderColor: "#2b3139",
         timeVisible: true,
-        secondsVisible: timeframe === "0.25s" || timeframe === "1s",
-        tickMarkFormatter: createTickMarkFormatter(timeframe),
-        barSpacing: timeframe === "0.25s" || timeframe === "1s" ? 40 : 6,
-        minBarSpacing: timeframe === "0.25s" || timeframe === "1s" ? 2 : 0.5,
         rightOffset: 12,
         fixRightEdge: true,
       },
@@ -269,6 +254,42 @@ export default function Chart() {
     });
     chartRef.current = chart;
 
+    const handleResize = () => {
+      if (!chartRef.current) return;
+      try {
+        chartRef.current.applyOptions({ width: chartContainerRef.current?.clientWidth });
+      } catch {
+        // Chart may be disposed
+      }
+    };
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      chartRef.current = null;
+      seriesRef.current = null;
+      try {
+        chart.remove();
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
+
+  // Update timeScale options and series when timeframe or chartType changes (reuse chart instance)
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    chart.applyOptions({
+      timeScale: {
+        secondsVisible: timeframe === "0.25s" || timeframe === "1s",
+        tickMarkFormatter: createTickMarkFormatter(timeframe),
+        barSpacing: timeframe === "0.25s" || timeframe === "1s" ? 40 : 6,
+        minBarSpacing: timeframe === "0.25s" || timeframe === "1s" ? 2 : 0.5,
+      },
+    });
+
     const seriesOptions = {
       candlestick: {
         upColor: "#0ecb81",
@@ -286,6 +307,15 @@ export default function Chart() {
       },
     };
 
+    const oldSeries = seriesRef.current;
+    if (oldSeries) {
+      try {
+        chart.removeSeries(oldSeries as unknown as ReturnType<typeof chart.addSeries>);
+      } catch {
+        // ignore
+      }
+    }
+
     let series;
     if (chartType === "candles") {
       series = chart.addSeries(CandlestickSeries, seriesOptions.candlestick);
@@ -298,26 +328,6 @@ export default function Chart() {
     }
     seriesRef.current = series as { setData: (d: unknown[]) => void; update: (d: unknown) => void };
     prevCandlesRef.current = [];
-
-    const handleResize = () => {
-      if (chartRef.current !== chart) return;
-      chart.applyOptions({ width: chartContainerRef.current?.clientWidth });
-    };
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-      const ch = chart;
-      chartRef.current = null;
-      seriesRef.current = null;
-      requestAnimationFrame(() => {
-        try {
-          ch.remove();
-        } catch {
-          // Chart may already be disposed
-        }
-      });
-    };
   }, [timeframe, chartType]);
 
   useEffect(() => {

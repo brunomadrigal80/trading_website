@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { fetchAllTickers24h, fetchAllFuturesTickers24h, type Ticker24h } from "@/lib/binance";
+import { fetchAllTickers24h, fetchAllFuturesTickers24h, type Ticker24h } from "@/lib/kucoin";
 
 const TICKER_POLL_MS = 5000;
 

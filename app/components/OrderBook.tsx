@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { fetchOrderBook, fetchFuturesOrderBook } from "@/lib/binance";
+import { fetchOrderBook, fetchFuturesOrderBook } from "@/lib/kucoin";
 
 function getBaseAsset(pair: string) {
   return pair.split("/")[0] ?? "BTC";
