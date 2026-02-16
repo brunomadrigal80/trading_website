@@ -262,12 +262,16 @@ export default function Chart() {
     setCandles([]);
     currentBarStartTimeRef.current = 0;
     currentBarRef.current = null;
+    if (tickerData && Number.isFinite(parseFloat(tickerData.lastPrice))) {
+      lastPriceRef.current = parseFloat(tickerData.lastPrice);
+    }
     const barDurationMs = 1000;
     const fetchPrice = useFutures ? fetchFuturesTicker24h : fetchTicker24h;
     (async () => {
       const t = await fetchPrice(pair);
       if (t) lastPriceRef.current = parseFloat(t.lastPrice);
     })();
+    const tickMs = 150;
     const id = setInterval(() => {
       const price = lastPriceRef.current ?? NaN;
       if (!Number.isFinite(price)) return;
@@ -335,7 +339,7 @@ export default function Chart() {
           }
         }
       }
-    }, barDurationMs);
+    }, tickMs);
     return () => clearInterval(id);
   }, [pair, timeframe, useFutures, isSubSecond]);
 
