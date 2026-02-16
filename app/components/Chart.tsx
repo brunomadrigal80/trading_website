@@ -68,7 +68,57 @@ function ChartTypeIcon({ type }: { type: (typeof CHART_TYPES)[number]["id"] }) {
   );
 }
 
-const TIMEFRAMES = ["0.25s", "1s", "15m", "1H", "4H", "1D", "1W"] as const;
+const TIMEFRAMES = ["1s", "15m", "1H", "4H", "1D", "1W"] as const;
+
+/** Bar count per interval so each timeframe shows a realistic, distinct time span (like Binance). */
+function getKlineLimit(timeframe: (typeof TIMEFRAMES)[number]): number {
+  switch (timeframe) {
+    case "1s":
+      return 240; // ~4h of 1m candles
+    case "15m":
+      return 96; // 24h
+    case "1H":
+      return 168; // 1 week
+    case "4H":
+      return 90; // ~15 days
+    case "1D":
+      return 60; // ~2 months
+    case "1W":
+      return 26; // ~6 months
+    default:
+      return 200;
+  }
+}
+
+/** How often to refetch klines from API (ms). Shorter intervals = more frequent refetch. */
+function getKlinePollMs(timeframe: (typeof TIMEFRAMES)[number]): number {
+  switch (timeframe) {
+    case "1s":
+      return 1000; // 1x/sec
+    case "15m":
+      return 2000;
+    case "1H":
+      return 3000;
+    case "4H":
+      return 5000;
+    case "1D":
+      return 10000;
+    case "1W":
+      return 15000;
+    default:
+      return 2000;
+  }
+}
+
+/** How often to update the live (rightmost) bar with latest price (ms). Like Binance: ~250ms = 4x/sec. */
+function getTickerPollMs(timeframe: (typeof TIMEFRAMES)[number]): number {
+  switch (timeframe) {
+    case "1s":
+      return 200; // ~5x per 1s bar so candles get a real high/low range
+    default:
+      return 250; // Binance-style: 4x/sec for other intervals
+  }
+}
 
 /**
  * Time axis label format by timeframe:
@@ -114,7 +164,6 @@ function createTickMarkFormatter(timeframe: string) {
     const pad = (n: number) => n.toString().padStart(2, "0");
 
     switch (timeframe) {
-      case "0.25s":
       case "1s":
       case "1m":
         return `${pad(h)}:${pad(m)}:${pad(s)}`;
@@ -163,7 +212,7 @@ export default function Chart() {
     enabled: Number.isFinite(targetChange),
     durationMs: 320,
   });
-  const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("0.25s");
+  const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("15m");
   const [chartType, setChartType] = useState<(typeof CHART_TYPES)[number]["id"]>("candles");
   const [chartTypeOpen, setChartTypeOpen] = useState(false);
   const [candles, setCandles] = useState<CandlestickData[]>([]);
@@ -172,6 +221,9 @@ export default function Chart() {
   const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
   const seriesRef = useRef<{ setData: (d: unknown[]) => void; update: (d: unknown) => void } | null>(null);
   const prevCandlesRef = useRef<CandlestickData[]>([]);
+  const lastPriceRef = useRef<number | null>(null);
+  const currentBarRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null);
+  const currentBarStartTimeRef = useRef<number>(0);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -183,14 +235,18 @@ export default function Chart() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const klinePollMs = 500;
+  const klinePollMs = getKlinePollMs(timeframe);
+  const isSubSecond = timeframe === "1s";
 
   useEffect(() => {
+    if (isSubSecond) return;
     let mounted = true;
+    setCandles([]);
+    const limit = getKlineLimit(timeframe);
     const load = async () => {
       const data = useFutures
-        ? await fetchFuturesKlines(pair, timeframe, timeframe === "1W" ? 100 : 200)
-        : await fetchKlines(pair, timeframe, timeframe === "1W" ? 100 : 200);
+        ? await fetchFuturesKlines(pair, timeframe, limit)
+        : await fetchKlines(pair, timeframe, limit);
       if (mounted && data.length > 0) setCandles(klinesToCandles(data));
     };
     load();
@@ -199,7 +255,89 @@ export default function Chart() {
       mounted = false;
       clearInterval(id);
     };
-  }, [pair, timeframe, useFutures, klinePollMs]);
+  }, [pair, timeframe, useFutures, klinePollMs, isSubSecond]);
+
+  useEffect(() => {
+    if (!isSubSecond) return;
+    setCandles([]);
+    currentBarStartTimeRef.current = 0;
+    currentBarRef.current = null;
+    const barDurationMs = 1000;
+    const fetchPrice = useFutures ? fetchFuturesTicker24h : fetchTicker24h;
+    (async () => {
+      const t = await fetchPrice(pair);
+      if (t) lastPriceRef.current = parseFloat(t.lastPrice);
+    })();
+    const id = setInterval(() => {
+      const price = lastPriceRef.current ?? NaN;
+      if (!Number.isFinite(price)) return;
+      lastPriceRef.current = price;
+      const now = Date.now();
+      const bucketMs = Math.floor(now / barDurationMs) * barDurationMs;
+      const bucketTime = (bucketMs / 1000) as UTCTimestamp;
+      const series = seriesRef.current;
+      if (currentBarStartTimeRef.current === 0) {
+        currentBarStartTimeRef.current = bucketMs;
+        currentBarRef.current = { open: price, high: price, low: price, close: price };
+        const bar: CandlestickData = {
+          time: bucketTime,
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+        };
+        setCandles((prev) => [...prev, bar]);
+        return;
+      }
+      if (bucketMs > currentBarStartTimeRef.current) {
+        const completed = currentBarRef.current!;
+        const completedBar: CandlestickData = {
+          time: (currentBarStartTimeRef.current / 1000) as UTCTimestamp,
+          open: completed.open,
+          high: completed.high,
+          low: completed.low,
+          close: completed.close,
+        };
+        currentBarStartTimeRef.current = bucketMs;
+        currentBarRef.current = { open: price, high: price, low: price, close: price };
+        const newBar: CandlestickData = {
+          time: bucketTime,
+          open: price,
+          high: price,
+          low: price,
+          close: price,
+        };
+        setCandles((prev) => [...prev, completedBar, newBar]);
+        if (series) {
+          try {
+            series.update(completedBar as never);
+            series.update(newBar as never);
+          } catch {
+            // ignore
+          }
+        }
+      } else {
+        const cur = currentBarRef.current!;
+        cur.high = Math.max(cur.high, price);
+        cur.low = Math.min(cur.low, price);
+        cur.close = price;
+        if (series) {
+          try {
+            series.update({
+              time: (currentBarStartTimeRef.current / 1000) as UTCTimestamp,
+              open: cur.open,
+              high: cur.high,
+              low: cur.low,
+              close: cur.close,
+            } as never);
+          } catch {
+            // ignore
+          }
+        }
+      }
+    }, barDurationMs);
+    return () => clearInterval(id);
+  }, [pair, timeframe, useFutures, isSubSecond]);
 
   // Create chart once on mount; remove only on unmount to avoid "Object is disposed" from library paint after remove
   useEffect(() => {
@@ -283,10 +421,10 @@ export default function Chart() {
 
     chart.applyOptions({
       timeScale: {
-        secondsVisible: timeframe === "0.25s" || timeframe === "1s",
+        secondsVisible: timeframe === "1s",
         tickMarkFormatter: createTickMarkFormatter(timeframe),
-        barSpacing: timeframe === "0.25s" || timeframe === "1s" ? 40 : 6,
-        minBarSpacing: timeframe === "0.25s" || timeframe === "1s" ? 2 : 0.5,
+        barSpacing: timeframe === "1s" ? 40 : 6,
+        minBarSpacing: timeframe === "1s" ? 2 : 0.5,
       },
     });
 
@@ -328,44 +466,51 @@ export default function Chart() {
     }
     seriesRef.current = series as { setData: (d: unknown[]) => void; update: (d: unknown) => void };
     prevCandlesRef.current = [];
+    series.setData([]);
   }, [timeframe, chartType]);
 
   useEffect(() => {
     const series = seriesRef.current;
-    if (!series || candles.length === 0) return;
+    if (!series) return;
 
     try {
-    const prev = prevCandlesRef.current;
-    const data = chartType === "candles" || chartType === "bars" ? candles : candlesToLineData(candles);
-
-    if (prev.length === 0) {
-      series.setData(data);
-      prevCandlesRef.current = [...candles];
-      chartRef.current?.timeScale().fitContent();
-      chartRef.current?.timeScale().scrollToRealTime();
-      return;
-    }
-
-    const lastPrev = prev[prev.length - 1];
-    const lastNew = candles[candles.length - 1];
-    const prevTime = (lastPrev as { time: UTCTimestamp }).time;
-    const newTime = (lastNew as { time: UTCTimestamp }).time;
-
-    if (prevTime === newTime) {
-      const bar =
-        chartType === "candles" || chartType === "bars"
-          ? lastNew
-          : { time: lastNew.time, value: lastNew.close };
-      series.update(bar as never);
-    } else if (candles.length > prev.length) {
-      for (let i = prev.length; i < candles.length; i++) {
-        const bar = chartType === "candles" || chartType === "bars" ? candles[i] : candlesToLineData([candles[i]])[0];
-        series.update(bar as never);
+      if (candles.length === 0) {
+        series.setData([]);
+        prevCandlesRef.current = [];
+        return;
       }
-    } else {
-      series.setData(data);
-    }
-    prevCandlesRef.current = [...candles];
+
+      const prev = prevCandlesRef.current;
+      const data = chartType === "candles" || chartType === "bars" ? candles : candlesToLineData(candles);
+
+      if (prev.length === 0) {
+        series.setData(data);
+        prevCandlesRef.current = [...candles];
+        chartRef.current?.timeScale().fitContent();
+        chartRef.current?.timeScale().scrollToRealTime();
+        return;
+      }
+
+      const lastPrev = prev[prev.length - 1];
+      const lastNew = candles[candles.length - 1];
+      const prevTime = (lastPrev as { time: UTCTimestamp }).time;
+      const newTime = (lastNew as { time: UTCTimestamp }).time;
+
+      if (prevTime === newTime) {
+        const bar =
+          chartType === "candles" || chartType === "bars"
+            ? lastNew
+            : { time: lastNew.time, value: lastNew.close };
+        series.update(bar as never);
+      } else if (candles.length > prev.length) {
+        for (let i = prev.length; i < candles.length; i++) {
+          const bar = chartType === "candles" || chartType === "bars" ? candles[i] : candlesToLineData([candles[i]])[0];
+          series.update(bar as never);
+        }
+      } else {
+        series.setData(data);
+      }
+      prevCandlesRef.current = [...candles];
     } catch {
       // Chart may be disposed
     }
@@ -398,18 +543,50 @@ export default function Chart() {
       }
     };
 
-    if (tickerData && candles.length > 0) {
-      updateLiveBar(parseFloat(tickerData.lastPrice));
+    const updateSubSecondBar = (price: number) => {
+      const cur = currentBarRef.current;
+      const startMs = currentBarStartTimeRef.current;
+      if (!cur || startMs === 0 || !seriesRef.current) return;
+      cur.high = Math.max(cur.high, price);
+      cur.low = Math.min(cur.low, price);
+      cur.close = price;
+      try {
+        seriesRef.current.update({
+          time: (startMs / 1000) as UTCTimestamp,
+          open: cur.open,
+          high: cur.high,
+          low: cur.low,
+          close: cur.close,
+        } as never);
+      } catch {
+        // ignore
+      }
+    };
+
+    if (tickerData) {
+      const p = parseFloat(tickerData.lastPrice);
+      if (Number.isFinite(p)) {
+        lastPriceRef.current = p;
+        if (isSubSecond) updateSubSecondBar(p);
+        else if (candles.length > 0) updateLiveBar(p);
+      }
     }
 
     const poll = async () => {
-      if (!seriesRef.current || prevCandlesRef.current.length === 0) return;
       const t = useFutures ? await fetchFuturesTicker24h(pair) : await fetchTicker24h(pair);
-      if (t && seriesRef.current) updateLiveBar(parseFloat(t.lastPrice));
+      if (t) {
+        const p = parseFloat(t.lastPrice);
+        if (Number.isFinite(p)) {
+          lastPriceRef.current = p;
+          if (isSubSecond) updateSubSecondBar(p);
+          else if (seriesRef.current && prevCandlesRef.current.length > 0) updateLiveBar(p);
+        }
+      }
     };
-    const id = setInterval(poll, 500);
+    const tickerPollMs = getTickerPollMs(timeframe);
+    const id = setInterval(poll, tickerPollMs);
     return () => clearInterval(id);
-  }, [tickerData, candles.length, chartType, pair, useFutures]);
+  }, [tickerData, candles.length, chartType, pair, useFutures, timeframe]);
 
 
   return (
