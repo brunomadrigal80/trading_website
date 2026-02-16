@@ -62,7 +62,7 @@ export default function OrderBook() {
       }
     };
     load();
-    const id = setInterval(load, 500);
+    const id = setInterval(load, 800);
     return () => {
       mounted = false;
       clearInterval(id);

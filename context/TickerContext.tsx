@@ -1,10 +1,10 @@
 "use client";
 
-import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { fetchAllTickers24h, fetchAllFuturesTickers24h, type Ticker24h } from "@/lib/binance";
 
-const TICKER_POLL_MS = 4000;
+const TICKER_POLL_MS = 5000;
 
 type TickerContextValue = {
   tickers: Ticker24h[];
@@ -72,12 +72,10 @@ export function TickerProvider({ children }: { children: ReactNode }) {
     [tickers]
   );
 
-  const value: TickerContextValue = {
-    tickers,
-    getTicker,
-    getTickersBySymbols,
-    topByVolume,
-  };
+  const value = useMemo<TickerContextValue>(
+    () => ({ tickers, getTicker, getTickersBySymbols, topByVolume }),
+    [tickers, getTicker, getTickersBySymbols, topByVolume]
+  );
 
   return <TickerContext.Provider value={value}>{children}</TickerContext.Provider>;
 }

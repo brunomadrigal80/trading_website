@@ -54,14 +54,8 @@ body {
   }
 }
 
-@keyframes initial-load-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-    transform: scale(0.95);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1);
-  }
+#initial-loader[data-hidden] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease-out;
 }

@@ -183,7 +183,7 @@ export default function Chart() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const klinePollMs = 250;
+  const klinePollMs = 500;
 
   useEffect(() => {
     let mounted = true;
@@ -397,7 +397,7 @@ export default function Chart() {
       const t = useFutures ? await fetchFuturesTicker24h(pair) : await fetchTicker24h(pair);
       if (t && seriesRef.current) updateLiveBar(parseFloat(t.lastPrice));
     };
-    const id = setInterval(poll, 250);
+    const id = setInterval(poll, 500);
     return () => clearInterval(id);
   }, [tickerData, candles.length, chartType, pair, useFutures]);
 
