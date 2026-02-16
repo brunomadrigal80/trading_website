@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Minimal set to fix WalletConnect/@noble ESM syntax; more packages slow first compile and can trigger "Request timed out"
+  transpilePackages: ["@noble/curves", "ox"],
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
     config.resolve ??= {};

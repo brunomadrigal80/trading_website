@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:slow": "node --max-old-space-size=6144 ./node_modules/.bin/next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"

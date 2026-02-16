@@ -17,13 +17,18 @@ export default function OrderPanel() {
   const [amount, setAmount] = useState("");
 
   useEffect(() => {
+    let mounted = true;
     const handler = (e: CustomEvent<{ price: number; side: "buy" | "sell" }>) => {
+      if (!mounted) return;
       const p = e.detail.price;
       setPrice(p >= 1 ? p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 }) : p.toString());
       setSide(e.detail.side);
     };
     window.addEventListener("orderbook:setPrice", handler as EventListener);
-    return () => window.removeEventListener("orderbook:setPrice", handler as EventListener);
+    return () => {
+      mounted = false;
+      window.removeEventListener("orderbook:setPrice", handler as EventListener);
+    };
   }, []);
 
   return (

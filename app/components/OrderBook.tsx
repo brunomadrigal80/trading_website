@@ -49,9 +49,10 @@ export default function OrderBook() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
     const load = async () => {
       const data = useFutures ? await fetchFuturesOrderBook(pair, 50) : await fetchOrderBook(pair, 50);
-      if (data) {
+      if (mounted && data) {
         setBids(
           data.bids.map(([p, q]) => ({ price: parseFloat(p), amount: parseFloat(q) }))
         );
@@ -62,7 +63,10 @@ export default function OrderBook() {
     };
     load();
     const id = setInterval(load, 500);
-    return () => clearInterval(id);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
   }, [pair, useFutures]);
 
   const stepNum = parseFloat(step);

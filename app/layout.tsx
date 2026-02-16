@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import ContextProvider from "@/context";
+import InitialLoadOverlay from "@/app/components/InitialLoadOverlay";
 
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
@@ -46,14 +47,18 @@ export default async function RootLayout({
   `.replace(/\s+/g, " ").trim();
 
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" style={{ background: "#0a0b0d" }}>
       <body
         className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased`}
+        style={{ background: "#0a0b0d" }}
       >
         <script
           dangerouslySetInnerHTML={{ __html: walletErrorScript }}
         />
-        <ContextProvider cookies={cookies}>{children}</ContextProvider>
+        <ContextProvider cookies={cookies}>
+          <InitialLoadOverlay />
+          {children}
+        </ContextProvider>
       </body>
     </html>
   );

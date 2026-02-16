@@ -29,13 +29,17 @@ export function TickerProvider({ children }: { children: ReactNode }) {
   const [tickers, setTickers] = useState<Ticker24h[]>([]);
 
   useEffect(() => {
+    let mounted = true;
     const load = async () => {
       const data = useFutures ? await fetchAllFuturesTickers24h() : await fetchAllTickers24h();
-      setTickers(data);
+      if (mounted) setTickers(data);
     };
     load();
     const id = setInterval(load, TICKER_POLL_MS);
-    return () => clearInterval(id);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
   }, [useFutures]);
 
   const getTicker = useCallback(

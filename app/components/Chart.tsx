@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import { useAnimatedValue } from "@/app/hooks/useAnimatedValue";
 import {
   createChart,
   CandlestickSeries,
@@ -152,6 +153,16 @@ export default function Chart() {
     () => (tickerData ? { price: tickerData.lastPrice, change: tickerData.priceChangePercent } : null),
     [tickerData]
   );
+  const targetPrice = ticker ? parseFloat(ticker.price) : NaN;
+  const targetChange = ticker ? parseFloat(ticker.change) : NaN;
+  const animatedPrice = useAnimatedValue(Number.isFinite(targetPrice) ? targetPrice : 0, {
+    enabled: Number.isFinite(targetPrice),
+    durationMs: 360,
+  });
+  const animatedChange = useAnimatedValue(Number.isFinite(targetChange) ? targetChange : 0, {
+    enabled: Number.isFinite(targetChange),
+    durationMs: 320,
+  });
   const [timeframe, setTimeframe] = useState<(typeof TIMEFRAMES)[number]>("0.25s");
   const [chartType, setChartType] = useState<(typeof CHART_TYPES)[number]["id"]>("candles");
   const [chartTypeOpen, setChartTypeOpen] = useState(false);
@@ -175,15 +186,19 @@ export default function Chart() {
   const klinePollMs = 250;
 
   useEffect(() => {
+    let mounted = true;
     const load = async () => {
       const data = useFutures
         ? await fetchFuturesKlines(pair, timeframe, timeframe === "1W" ? 100 : 200)
         : await fetchKlines(pair, timeframe, timeframe === "1W" ? 100 : 200);
-      if (data.length > 0) setCandles(klinesToCandles(data));
+      if (mounted && data.length > 0) setCandles(klinesToCandles(data));
     };
     load();
     const id = setInterval(load, klinePollMs);
-    return () => clearInterval(id);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
   }, [pair, timeframe, useFutures, klinePollMs]);
 
   useEffect(() => {
@@ -236,6 +251,8 @@ export default function Chart() {
         tickMarkFormatter: createTickMarkFormatter(timeframe),
         barSpacing: timeframe === "0.25s" || timeframe === "1s" ? 40 : 6,
         minBarSpacing: timeframe === "0.25s" || timeframe === "1s" ? 2 : 0.5,
+        rightOffset: 12,
+        fixRightEdge: true,
       },
       handleScale: {
         mouseWheel: true,
@@ -315,6 +332,7 @@ export default function Chart() {
       series.setData(data);
       prevCandlesRef.current = [...candles];
       chartRef.current?.timeScale().fitContent();
+      chartRef.current?.timeScale().scrollToRealTime();
       return;
     }
 
@@ -342,8 +360,6 @@ export default function Chart() {
       // Chart may be disposed
     }
   }, [candles, chartType]);
-
-  prevCandlesRef.current = candles;
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -381,7 +397,7 @@ export default function Chart() {
       const t = useFutures ? await fetchFuturesTicker24h(pair) : await fetchTicker24h(pair);
       if (t && seriesRef.current) updateLiveBar(parseFloat(t.lastPrice));
     };
-    const id = setInterval(poll, 1000);
+    const id = setInterval(poll, 250);
     return () => clearInterval(id);
   }, [tickerData, candles.length, chartType, pair, useFutures]);
 
@@ -393,16 +409,17 @@ export default function Chart() {
           <h2 className="font-mono text-lg font-semibold text-[var(--text-primary)]">
             {pair}
           </h2>
-          <span className={`font-mono ${ticker && !Number.isNaN(parseFloat(ticker.change)) && parseFloat(ticker.change) < 0 ? "text-[var(--accent-sell)]" : "text-[var(--accent-buy)]"}`}>
-            {ticker
-              ? (() => {
-                  const p = parseFloat(ticker.price);
-                  return Number.isNaN(p) ? "—" : p >= 1 ? `$${p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `$${p.toFixed(6)}`;
-                })()
+          <span className={`font-mono tabular-nums ${ticker && targetChange < 0 ? "text-[var(--accent-sell)]" : "text-[var(--accent-buy)]"}`}>
+            {Number.isFinite(targetPrice)
+              ? animatedPrice >= 1
+                ? `$${animatedPrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : `$${animatedPrice.toFixed(6)}`
               : "—"}
           </span>
-          <span className={`text-sm ${ticker && !Number.isNaN(parseFloat(ticker.change)) && parseFloat(ticker.change) < 0 ? "text-[var(--accent-sell)]" : "text-[var(--accent-buy)]"}`}>
-            {ticker ? (() => { const c = parseFloat(ticker.change); return Number.isNaN(c) ? "—" : `${c >= 0 ? "+" : ""}${c.toFixed(2)}%`; })() : "—"}
+          <span className={`text-sm tabular-nums ${ticker && targetChange < 0 ? "text-[var(--accent-sell)]" : "text-[var(--accent-buy)]"}`}>
+            {Number.isFinite(targetChange)
+              ? `${animatedChange >= 0 ? "+" : ""}${animatedChange.toFixed(2)}%`
+              : "—"}
           </span>
           <span className="text-xs text-[var(--text-muted)]">24h</span>
         </div>

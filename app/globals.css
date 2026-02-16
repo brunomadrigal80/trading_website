@@ -47,3 +47,21 @@ body {
   background: var(--border);
   border-radius: 3px;
 }
+
+@keyframes initial-load-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes initial-load-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
