@@ -33,6 +33,17 @@ function candlesToLineData(candles: CandlestickData[]) {
   return candles.map((c) => ({ time: c.time, value: c.close }));
 }
 
+/** lightweight-charts requires data strictly ascending by time with no duplicate times. */
+function sortAndDedupeByTime<T extends { time: UTCTimestamp }>(items: T[]): T[] {
+  if (items.length <= 1) return items;
+  const byTime = new Map<number, T>();
+  for (const item of items) {
+    const t = item.time as number;
+    byTime.set(t, item);
+  }
+  return Array.from(byTime.entries()).sort(([a], [b]) => a - b).map(([, v]) => v);
+}
+
 const CHART_TYPES = [
   { id: "candles" as const, label: "Candles" },
   { id: "line" as const, label: "Line" },
@@ -224,6 +235,8 @@ export default function Chart() {
   const lastPriceRef = useRef<number | null>(null);
   const currentBarRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null);
   const currentBarStartTimeRef = useRef<number>(0);
+  const candlesRef = useRef<CandlestickData[]>(candles);
+  candlesRef.current = candles;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -262,17 +275,30 @@ export default function Chart() {
     setCandles([]);
     currentBarStartTimeRef.current = 0;
     currentBarRef.current = null;
-    if (tickerData && Number.isFinite(parseFloat(tickerData.lastPrice))) {
-      lastPriceRef.current = parseFloat(tickerData.lastPrice);
-    }
     const barDurationMs = 1000;
     const fetchPrice = useFutures ? fetchFuturesTicker24h : fetchTicker24h;
+    let mounted = true;
     (async () => {
       const t = await fetchPrice(pair);
-      if (t) lastPriceRef.current = parseFloat(t.lastPrice);
+      const price = t ? parseFloat(t.lastPrice) : NaN;
+      if (!mounted || !Number.isFinite(price)) return;
+      lastPriceRef.current = price;
+      const now = Date.now();
+      const bucketMs = Math.floor(now / barDurationMs) * barDurationMs;
+      const bucketTime = (bucketMs / 1000) as UTCTimestamp;
+      currentBarStartTimeRef.current = bucketMs;
+      currentBarRef.current = { open: price, high: price, low: price, close: price };
+      const bar: CandlestickData = {
+        time: bucketTime,
+        open: price,
+        high: price,
+        low: price,
+        close: price,
+      };
+      setCandles((prev) => [...prev, bar]);
     })();
-    const tickMs = 150;
     const id = setInterval(() => {
+      if (!mounted) return;
       const price = lastPriceRef.current ?? NaN;
       if (!Number.isFinite(price)) return;
       lastPriceRef.current = price;
@@ -339,8 +365,11 @@ export default function Chart() {
           }
         }
       }
-    }, tickMs);
-    return () => clearInterval(id);
+    }, barDurationMs);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
   }, [pair, timeframe, useFutures, isSubSecond]);
 
   // Create chart once on mount; remove only on unmount to avoid "Object is disposed" from library paint after remove
@@ -471,6 +500,19 @@ export default function Chart() {
     seriesRef.current = series as { setData: (d: unknown[]) => void; update: (d: unknown) => void };
     prevCandlesRef.current = [];
     series.setData([]);
+    const currentCandles = candlesRef.current;
+    if (currentCandles.length > 0) {
+      const raw = chartType === "candles" || chartType === "bars" ? currentCandles : candlesToLineData(currentCandles);
+      const data = sortAndDedupeByTime(raw as { time: UTCTimestamp }[]);
+      series.setData(data);
+      prevCandlesRef.current = [...currentCandles];
+      try {
+        chartRef.current?.timeScale().fitContent();
+        chartRef.current?.timeScale().scrollToRealTime();
+      } catch {
+        // ignore
+      }
+    }
   }, [timeframe, chartType]);
 
   useEffect(() => {
@@ -485,7 +527,8 @@ export default function Chart() {
       }
 
       const prev = prevCandlesRef.current;
-      const data = chartType === "candles" || chartType === "bars" ? candles : candlesToLineData(candles);
+      const raw = chartType === "candles" || chartType === "bars" ? candles : candlesToLineData(candles);
+      const data = sortAndDedupeByTime(raw as { time: UTCTimestamp }[]);
 
       if (prev.length === 0) {
         series.setData(data);
