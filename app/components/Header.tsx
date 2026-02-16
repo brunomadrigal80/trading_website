@@ -3,13 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
-import { toast } from "sonner";
-
-function isRunningLocally(): boolean {
-  if (typeof window === "undefined") return false;
-  const host = window.location.hostname;
-  return host === "localhost" || host === "127.0.0.1";
-}
 
 function ConnectWalletButton() {
   const { open } = useAppKit();
@@ -18,18 +11,10 @@ function ConnectWalletButton() {
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : "Connect Wallet";
 
-  const handleClick = () => {
-    if (isRunningLocally()) {
-      open();
-    } else {
-      toast.info("Wallet connection is only available when running locally.");
-    }
-  };
-
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={() => open()}
       className="rounded-lg bg-[var(--accent-cyan)] px-4 py-2 text-sm font-semibold text-[var(--bg-primary)] transition-opacity hover:opacity-90"
     >
       {display}

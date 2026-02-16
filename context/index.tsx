@@ -8,6 +8,8 @@ import React, { type ReactNode } from "react";
 import { cookieToInitialState, WagmiProvider, type Config } from "wagmi";
 import { Toaster } from "sonner";
 import { TickerProvider } from "./TickerContext";
+import WalletErrorHandler from "@/app/components/WalletErrorHandler";
+import ReconnectOnMount from "@/app/components/ReconnectOnMount";
 
 const queryClient = new QueryClient();
 
@@ -48,8 +50,10 @@ export default function ContextProvider({
   const initialState = cookieToInitialState(wagmiAdapter.wagmiConfig as Config, cookies);
 
   return (
-    <WagmiProvider config={wagmiAdapter.wagmiConfig as Config} initialState={initialState} reconnectOnMount>
+    <WagmiProvider config={wagmiAdapter.wagmiConfig as Config} initialState={initialState} reconnectOnMount={false}>
       <QueryClientProvider client={queryClient}>
+        <WalletErrorHandler />
+        <ReconnectOnMount />
         <TickerProvider>
           {children}
           <Toaster theme="dark" />

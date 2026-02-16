@@ -29,11 +29,30 @@ export default async function RootLayout({
   const headersObj = await headers();
   const cookies = headersObj.get("cookie");
 
+  const walletErrorScript = `
+    (function(){
+      function isWalletErr(r){
+        var m=(r&&(r.message||String(r)))||'';
+        return /failed to connect to metamask|connection declined|user rejected|connector/i.test(m);
+      }
+      window.__walletConnectionError=false;
+      window.addEventListener('unhandledrejection',function(e){
+        if(!isWalletErr(e.reason))return;
+        e.preventDefault();
+        e.stopPropagation();
+        window.__walletConnectionError=true;
+      },true);
+    })();
+  `.replace(/\s+/g, " ").trim();
+
   return (
     <html lang="en" className="dark">
       <body
         className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased`}
       >
+        <script
+          dangerouslySetInnerHTML={{ __html: walletErrorScript }}
+        />
         <ContextProvider cookies={cookies}>{children}</ContextProvider>
       </body>
     </html>
