@@ -286,17 +286,19 @@ export async function fetchFuturesOrderBook(symbol: string, limit = 20): Promise
   }
 }
 
+// KuCoin futures REST kline endpoint expects granularity in minutes (as a stringified number),
+// e.g. "1", "5", "15", "60", "240", etc.
 const FUTURES_GRANULARITY_MAP: Record<string, number> = {
-  "0.25s": 60,
-  "1s": 60,
-  "1m": 60,
-  "5m": 300,
-  "15m": 900,
-  "1h": 3600,
-  "1H": 3600,
-  "4H": 14400,
-  "1D": 86400,
-  "1W": 604800,
+  "0.25s": 1,
+  "1s": 1,
+  "1m": 1,
+  "5m": 5,
+  "15m": 15,
+  "1h": 60,
+  "1H": 60,
+  "4H": 240,
+  "1D": 1440,
+  "1W": 10080,
 };
 
 export async function fetchFuturesKlines(
@@ -304,10 +306,16 @@ export async function fetchFuturesKlines(
   interval: string,
   limit = 200
 ): Promise<Kline[]> {
-  const gran = FUTURES_GRANULARITY_MAP[interval] ?? FUTURES_GRANULARITY_MAP["1H"] ?? 3600;
+  const granMinutes = FUTURES_GRANULARITY_MAP[interval] ?? 60;
+  const now = Date.now();
+  const endAt = now;
+  // Request roughly `limit` candles back in time
+  const startAt = now - granMinutes * 60 * 1000 * limit;
   try {
     const res = await fetch(
-      `${KUCOIN_FUTURES_API}/api/v1/kline/query?symbol=${toFuturesSymbol(symbol)}&granularity=${gran}`,
+      `${KUCOIN_FUTURES_API}/api/v1/kline/query?symbol=${toFuturesSymbol(
+        symbol,
+      )}&granularity=${granMinutes}&startAt=${Math.floor(startAt)}&endAt=${Math.floor(endAt)}`,
       fetchOpts
     );
     if (!res.ok) return [];

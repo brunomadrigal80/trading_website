@@ -62,7 +62,8 @@ export default function OrderBook() {
       }
     };
     load();
-    const id = setInterval(load, 800);
+    // Update book every 2 seconds instead of sub‑second to reduce re-render churn
+    const id = setInterval(load, 2000);
     return () => {
       mounted = false;
       clearInterval(id);

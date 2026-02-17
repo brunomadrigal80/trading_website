@@ -4,7 +4,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { usePathname } from "next/navigation";
 import { fetchAllTickers24h, fetchAllFuturesTickers24h, type Ticker24h } from "@/lib/kucoin";
 
-const TICKER_POLL_MS = 5000;
+// Poll less aggressively to avoid constant re-renders across pages
+const TICKER_POLL_MS = 10000;
 
 type TickerContextValue = {
   tickers: Ticker24h[];

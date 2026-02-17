@@ -128,33 +128,37 @@ function getKlineLimit(timeframe: (typeof TIMEFRAMES)[number]): number {
   }
 }
 
-/** How often to refetch klines from API (ms). Shorter intervals = more frequent refetch. */
+/** How often to refetch klines from API (ms). Shorter intervals = more frequent refetch.
+ *  These values are tuned to avoid constant re-renders while still feeling live.
+ */
 function getKlinePollMs(timeframe: (typeof TIMEFRAMES)[number]): number {
   switch (timeframe) {
     case "1s":
-      return 1000; // 1x/sec
+      return 1500; // ~0.7x/sec
     case "15m":
-      return 2000;
+      return 4000;
     case "1H":
-      return 3000;
+      return 6000;
     case "4H":
-      return 5000;
+      return 9000;
     case "1D":
-      return 10000;
-    case "1W":
       return 15000;
+    case "1W":
+      return 20000;
     default:
-      return 2000;
+      return 4000;
   }
 }
 
-/** How often to update the live (rightmost) bar with latest price (ms). Like Binance: ~250ms = 4x/sec. */
+/** How often to update the live (rightmost) bar with latest price (ms).
+ *  Slowed slightly from ultra‑high frequency to reduce render load.
+ */
 function getTickerPollMs(timeframe: (typeof TIMEFRAMES)[number]): number {
   switch (timeframe) {
     case "1s":
-      return 200; // ~5x per 1s bar so candles get a real high/low range
+      return 600; // ~1.5x per 1s bar
     default:
-      return 250; // Binance-style: 4x/sec for other intervals
+      return 1000; // 1x/sec for other intervals
   }
 }
 
