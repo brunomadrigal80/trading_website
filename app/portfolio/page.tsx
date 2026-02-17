@@ -17,7 +17,7 @@ function formatPrice(price: number): string {
 export default function PortfolioPage() {
   const { open } = useAppKit();
   const { isConnected, address } = useAppKitAccount();
-  const { data: balanceData } = useBalance({ address });
+  const { data: balanceData } = useBalance({ address: address as `0x${string}` | undefined });
   const { getTickersBySymbols } = useTickers();
   const tickers = getTickersBySymbols(WATCHLIST_SYMBOLS);
   return (
