@@ -27,27 +27,20 @@ const metadata = {
   icons: ["https://avatars.githubusercontent.com/u/179229932"],
 };
 
-// Only initialize AppKit when running offline (localhost) so that wallet
-// connections are available locally but disabled on deployed environments.
-if (typeof window !== "undefined") {
-  const host = window.location.hostname;
-  const isOfflineHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
-
-  if (isOfflineHost) {
-    createAppKit({
-      adapters: [wagmiAdapter],
-      projectId,
-      networks: [mainnet, arbitrum],
-      defaultNetwork: mainnet,
-      metadata,
-      features: {
-        analytics: false,
-        email: false,
-        socials: [],
-      },
-    });
-  }
-}
+// Initialize AppKit so useAppKit/useAppKitAccount hooks have a provider (required for SSR and client).
+// "Offline only" wallet behavior is enforced in the UI (Header shows toast when not on localhost).
+createAppKit({
+  adapters: [wagmiAdapter],
+  projectId,
+  networks: [mainnet, arbitrum],
+  defaultNetwork: mainnet,
+  metadata,
+  features: {
+    analytics: false,
+    email: false,
+    socials: [],
+  },
+});
 
 export default function ContextProvider({
   children,
