@@ -27,18 +27,27 @@ const metadata = {
   icons: ["https://avatars.githubusercontent.com/u/179229932"],
 };
 
-createAppKit({
-  adapters: [wagmiAdapter],
-  projectId,
-  networks: [mainnet, arbitrum],
-  defaultNetwork: mainnet,
-  metadata,
-  features: {
-    analytics: false,
-    email: false,
-    socials: [],
-  },
-});
+// Only initialize AppKit when running offline (localhost) so that wallet
+// connections are available locally but disabled on deployed environments.
+if (typeof window !== "undefined") {
+  const host = window.location.hostname;
+  const isOfflineHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
+
+  if (isOfflineHost) {
+    createAppKit({
+      adapters: [wagmiAdapter],
+      projectId,
+      networks: [mainnet, arbitrum],
+      defaultNetwork: mainnet,
+      metadata,
+      features: {
+        analytics: false,
+        email: false,
+        socials: [],
+      },
+    });
+  }
+}
 
 export default function ContextProvider({
   children,
