@@ -1,10 +1,15 @@
+import dynamic from "next/dynamic";
 import Header from "../components/Header";
-import Chart from "../components/Chart";
 import OrderBook from "../components/OrderBook";
 import OrderPanel from "../components/OrderPanel";
 import MarketList from "../components/MarketList";
 import FuturesLeverageSelector from "../components/FuturesLeverageSelector";
 import FuturesPositions from "../components/FuturesPositions";
+
+// Load the heavy charting library only when the futures page is visited
+const Chart = dynamic(() => import("../components/Chart"), {
+  ssr: false,
+});
 
 export default function FuturesPage() {
   return (
