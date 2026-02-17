@@ -33,6 +33,33 @@ function candlesToLineData(candles: CandlestickData[]) {
   return candles.map((c) => ({ time: c.time, value: c.close }));
 }
 
+/** For 1s Line/Area: interpolate between closes so the line is smooth (no stepped blocks). */
+function candlesToLineDataSmooth(
+  candles: CandlestickData[],
+  timeframe: string,
+): { time: UTCTimestamp; value: number }[] {
+  if (timeframe !== "1s" || candles.length === 0) {
+    return candlesToLineData(candles).map((d) => ({ time: d.time as UTCTimestamp, value: d.value }));
+  }
+  const out: { time: UTCTimestamp; value: number }[] = [];
+  for (let i = 0; i < candles.length; i++) {
+    const t0 = candles[i].time as number;
+    const v0 = candles[i].close;
+    out.push({ time: t0 as UTCTimestamp, value: v0 });
+    if (i < candles.length - 1) {
+      const t1 = (candles[i + 1].time as number) - t0;
+      const v1 = candles[i + 1].close;
+      for (let j = 1; j <= 4; j++) {
+        out.push({
+          time: (t0 + (t1 * j) / 5) as UTCTimestamp,
+          value: v0 + ((v1 - v0) * j) / 5,
+        });
+      }
+    }
+  }
+  return out;
+}
+
 /** lightweight-charts requires data strictly ascending by time with no duplicate times. */
 function sortAndDedupeByTime<T extends { time: UTCTimestamp }>(items: T[]): T[] {
   if (items.length <= 1) return items;
@@ -235,6 +262,7 @@ export default function Chart() {
   const lastPriceRef = useRef<number | null>(null);
   const currentBarRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null);
   const currentBarStartTimeRef = useRef<number>(0);
+  const tickHistoryRef = useRef<{ time: UTCTimestamp; value: number }[]>([]);
   const candlesRef = useRef<CandlestickData[]>(candles);
   candlesRef.current = candles;
 
@@ -456,8 +484,8 @@ export default function Chart() {
       timeScale: {
         secondsVisible: timeframe === "1s",
         tickMarkFormatter: createTickMarkFormatter(timeframe),
-        barSpacing: timeframe === "1s" ? 40 : 6,
-        minBarSpacing: timeframe === "1s" ? 2 : 0.5,
+        barSpacing: 6,
+        minBarSpacing: 0.5,
       },
     });
 
@@ -469,6 +497,8 @@ export default function Chart() {
         borderUpColor: "#0ecb81",
         wickDownColor: "#f6465d",
         wickUpColor: "#0ecb81",
+        wickVisible: true,
+        borderVisible: true,
       },
       line: { color: "#0ab3e6", lineWidth: 2 as const },
       area: { lineColor: "#0ab3e6", topColor: "rgba(10, 179, 230, 0.4)", bottomColor: "rgba(10, 179, 230, 0)" },
@@ -527,11 +557,20 @@ export default function Chart() {
       }
 
       const prev = prevCandlesRef.current;
-      const raw = chartType === "candles" || chartType === "bars" ? candles : candlesToLineData(candles);
+      const raw =
+        chartType === "candles" || chartType === "bars"
+          ? candles
+          : candlesToLineDataSmooth(candles, timeframe);
       const data = sortAndDedupeByTime(raw as { time: UTCTimestamp }[]);
 
       if (prev.length === 0) {
         series.setData(data);
+        if (timeframe === "1s" && (chartType === "line" || chartType === "area") && tickHistoryRef.current.length > 0) {
+          const lastTime = (candles[candles.length - 1]?.time as number) ?? 0;
+          for (const p of tickHistoryRef.current) {
+            if ((p.time as number) >= lastTime) series.update(p as never);
+          }
+        }
         prevCandlesRef.current = [...candles];
         chartRef.current?.timeScale().fitContent();
         chartRef.current?.timeScale().scrollToRealTime();
@@ -543,25 +582,35 @@ export default function Chart() {
       const prevTime = (lastPrev as { time: UTCTimestamp }).time;
       const newTime = (lastNew as { time: UTCTimestamp }).time;
 
+      const reapplyTicks = () => {
+        if (timeframe === "1s" && (chartType === "line" || chartType === "area") && tickHistoryRef.current.length > 0) {
+          const lastTime = (candles[candles.length - 1]?.time as number) ?? 0;
+          for (const p of tickHistoryRef.current) {
+            if ((p.time as number) >= lastTime) series.update(p as never);
+          }
+        }
+      };
+
       if (prevTime === newTime) {
         const bar =
           chartType === "candles" || chartType === "bars"
             ? lastNew
             : { time: lastNew.time, value: lastNew.close };
         series.update(bar as never);
-      } else if (candles.length > prev.length) {
+      } else if (candles.length > prev.length && !(timeframe === "1s" && (chartType === "line" || chartType === "area"))) {
         for (let i = prev.length; i < candles.length; i++) {
           const bar = chartType === "candles" || chartType === "bars" ? candles[i] : candlesToLineData([candles[i]])[0];
           series.update(bar as never);
         }
       } else {
         series.setData(data);
+        reapplyTicks();
       }
       prevCandlesRef.current = [...candles];
     } catch {
       // Chart may be disposed
     }
-  }, [candles, chartType]);
+  }, [candles, chartType, timeframe]);
 
   useEffect(() => {
     const series = seriesRef.current;
@@ -573,6 +622,7 @@ export default function Chart() {
       const latest = prevCandlesRef.current;
       if (latest.length === 0) return;
       const last = latest[latest.length - 1];
+      const is1sLineArea = timeframe === "1s" && (chartType === "line" || chartType === "area");
       const liveBar =
         chartType === "candles" || chartType === "bars"
           ? {
@@ -582,7 +632,14 @@ export default function Chart() {
               low: Math.min(last.low, price),
               close: price,
             }
-          : { time: last.time, value: price };
+          : is1sLineArea
+            ? { time: (Date.now() / 1000) as UTCTimestamp, value: price }
+            : { time: last.time, value: price };
+      if (is1sLineArea) {
+        const barStart = currentBarStartTimeRef.current / 1000;
+        tickHistoryRef.current = tickHistoryRef.current.filter((pt) => (pt.time as number) >= barStart);
+        tickHistoryRef.current.push({ time: liveBar.time as UTCTimestamp, value: price });
+      }
       try {
         series.update(liveBar as never);
       } catch {
@@ -609,6 +666,10 @@ export default function Chart() {
         // ignore
       }
     };
+
+    if (timeframe !== "1s" || (chartType !== "line" && chartType !== "area")) {
+      tickHistoryRef.current = [];
+    }
 
     if (tickerData) {
       const p = parseFloat(tickerData.lastPrice);
