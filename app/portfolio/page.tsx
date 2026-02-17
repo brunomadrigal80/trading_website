@@ -3,6 +3,7 @@
 import Header from "../components/Header";
 import { useTickers } from "@/context/TickerContext";
 import { useAppKit, useAppKitAccount } from "@reown/appkit/react";
+import { useBalance } from "wagmi";
 
 const WATCHLIST_SYMBOLS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"];
 
@@ -15,12 +16,10 @@ function formatPrice(price: number): string {
 
 export default function PortfolioPage() {
   const { open } = useAppKit();
-  const { isConnected } = useAppKitAccount();
+  const { isConnected, address } = useAppKitAccount();
+  const { data: balanceData } = useBalance({ address });
   const { getTickersBySymbols } = useTickers();
   const tickers = getTickersBySymbols(WATCHLIST_SYMBOLS);
-  const btcTicker = tickers.find((t) => t.symbol === "BTCUSDT");
-  const btcPrice = btcTicker ? parseFloat(btcTicker.lastPrice) : 0;
-  const btcChange = btcTicker ? parseFloat(btcTicker.priceChangePercent) : 0;
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bg-primary)]">
       <Header />
@@ -74,14 +73,33 @@ export default function PortfolioPage() {
 
           <section className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4">
             <h2 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">
-              BTC Price
+              Balance
             </h2>
-            <div className={`text-3xl font-bold ${btcChange >= 0 ? "text-[var(--accent-buy)]" : "text-[var(--accent-sell)]"}`}>
-              {btcPrice > 0 ? `$${formatPrice(btcPrice)}` : "—"}
-            </div>
-            <div className={`mt-2 text-sm ${btcChange >= 0 ? "text-[var(--accent-buy)]" : "text-[var(--accent-sell)]"}`}>
-              {!isNaN(btcChange) ? `${btcChange >= 0 ? "+" : ""}${btcChange.toFixed(2)}% 24h` : "—"}
-            </div>
+            {!isConnected ? (
+              <div className="flex flex-col items-center justify-center py-6 text-center">
+                <p className="text-sm text-[var(--text-muted)]">
+                  Connect your wallet to see your balance
+                </p>
+                <button
+                  type="button"
+                  onClick={() => open()}
+                  className="mt-4 rounded-lg bg-[var(--accent-cyan)] px-4 py-2 text-sm font-semibold text-[var(--bg-primary)] transition-opacity hover:opacity-90"
+                >
+                  Connect Wallet
+                </button>
+              </div>
+            ) : balanceData ? (
+              <>
+                <div className="text-3xl font-bold text-[var(--text-primary)]">
+                  {balanceData.formatted} {balanceData.symbol}
+                </div>
+                <div className="mt-2 text-sm text-[var(--text-muted)]">
+                  {address ? `${address.slice(0, 6)}...${address.slice(-4)}` : ""}
+                </div>
+              </>
+            ) : (
+              <div className="text-sm text-[var(--text-muted)]">Loading…</div>
+            )}
           </section>
         </div>
 

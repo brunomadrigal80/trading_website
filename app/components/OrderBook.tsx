@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
-import { fetchOrderBook, fetchFuturesOrderBook } from "@/lib/kucoin";
+import { useSearchParams } from "next/navigation";
+import { fetchOrderBook } from "@/lib/kucoin";
 
 function getBaseAsset(pair: string) {
   return pair.split("/")[0] ?? "BTC";
@@ -27,10 +27,8 @@ function dispatchPriceSelect(price: number, side: "buy" | "sell") {
 }
 
 export default function OrderBook() {
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const pair = searchParams.get("pair")?.replace("-", "/") ?? "BTC/USDT";
-  const useFutures = pathname?.includes("/futures") ?? false;
   const baseAsset = getBaseAsset(pair);
   const [step, setStep] = useState<(typeof STEPS)[number]>("0.1");
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -51,7 +49,7 @@ export default function OrderBook() {
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      const data = useFutures ? await fetchFuturesOrderBook(pair, 50) : await fetchOrderBook(pair, 50);
+      const data = await fetchOrderBook(pair, 50);
       if (mounted && data) {
         setBids(
           data.bids.map(([p, q]) => ({ price: parseFloat(p), amount: parseFloat(q) }))
@@ -68,7 +66,7 @@ export default function OrderBook() {
       mounted = false;
       clearInterval(id);
     };
-  }, [pair, useFutures]);
+  }, [pair]);
 
   const stepNum = parseFloat(step);
 

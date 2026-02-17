@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useAnimatedValue } from "@/app/hooks/useAnimatedValue";
 import {
   createChart,
@@ -16,7 +16,7 @@ import {
   isBusinessDay,
   isUTCTimestamp,
 } from "lightweight-charts";
-import { fetchKlines, fetchFuturesKlines, fetchTicker24h, fetchFuturesTicker24h, type Kline } from "@/lib/kucoin";
+import { fetchKlines, fetchTicker24h, type Kline } from "@/lib/kucoin";
 import { useTickers } from "@/context/TickerContext";
 
 function klinesToCandles(klines: Kline[]): CandlestickData[] {
@@ -234,10 +234,8 @@ function createTickMarkFormatter(timeframe: string) {
 }
 
 export default function Chart() {
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const pair = searchParams.get("pair")?.replace("-", "/") ?? "BTC/USDT";
-  const useFutures = pathname?.includes("/futures") ?? false;
   const { getTicker } = useTickers();
   const tickerData = getTicker(pair);
   const ticker = useMemo(
@@ -289,9 +287,7 @@ export default function Chart() {
     setCandles([]);
     const limit = getKlineLimit(timeframe);
     const load = async () => {
-      const data = useFutures
-        ? await fetchFuturesKlines(pair, timeframe, limit)
-        : await fetchKlines(pair, timeframe, limit);
+      const data = await fetchKlines(pair, timeframe, limit);
       if (mounted && data.length > 0) setCandles(klinesToCandles(data));
     };
     load();
@@ -300,7 +296,7 @@ export default function Chart() {
       mounted = false;
       clearInterval(id);
     };
-  }, [pair, timeframe, useFutures, klinePollMs, isSubSecond]);
+  }, [pair, timeframe, klinePollMs, isSubSecond]);
 
   useEffect(() => {
     if (!isSubSecond) return;
@@ -308,7 +304,7 @@ export default function Chart() {
     currentBarStartTimeRef.current = 0;
     currentBarRef.current = null;
     const barDurationMs = 1000;
-    const fetchPrice = useFutures ? fetchFuturesTicker24h : fetchTicker24h;
+    const fetchPrice = fetchTicker24h;
     let mounted = true;
     (async () => {
       const t = await fetchPrice(pair);
@@ -402,7 +398,7 @@ export default function Chart() {
       mounted = false;
       clearInterval(id);
     };
-  }, [pair, timeframe, useFutures, isSubSecond]);
+  }, [pair, timeframe, isSubSecond]);
 
   // Create chart once on mount; remove only on unmount to avoid "Object is disposed" from library paint after remove
   useEffect(() => {
@@ -685,7 +681,7 @@ export default function Chart() {
     }
 
     const poll = async () => {
-      const t = useFutures ? await fetchFuturesTicker24h(pair) : await fetchTicker24h(pair);
+      const t = await fetchTicker24h(pair);
       if (t) {
         const p = parseFloat(t.lastPrice);
         if (Number.isFinite(p)) {
@@ -698,7 +694,7 @@ export default function Chart() {
     const tickerPollMs = getTickerPollMs(timeframe);
     const id = setInterval(poll, tickerPollMs);
     return () => clearInterval(id);
-  }, [tickerData, candles.length, chartType, pair, useFutures, timeframe]);
+  }, [tickerData, candles.length, chartType, pair, timeframe]);
 
 
   return (

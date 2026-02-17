@@ -1,8 +1,7 @@
 "use client";
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
-import { fetchAllTickers24h, fetchAllFuturesTickers24h, type Ticker24h } from "@/lib/kucoin";
+import { fetchAllTickers24h, type Ticker24h } from "@/lib/kucoin";
 
 // Poll less aggressively to avoid constant re-renders across pages
 const TICKER_POLL_MS = 10000;
@@ -25,14 +24,12 @@ function toSymbol(s: string): string {
 }
 
 export function TickerProvider({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const useFutures = pathname?.includes("/futures") ?? false;
   const [tickers, setTickers] = useState<Ticker24h[]>([]);
 
   useEffect(() => {
     let mounted = true;
     const load = async () => {
-      const data = useFutures ? await fetchAllFuturesTickers24h() : await fetchAllTickers24h();
+      const data = await fetchAllTickers24h();
       if (mounted) setTickers(data);
     };
     load();
@@ -41,7 +38,7 @@ export function TickerProvider({ children }: { children: ReactNode }) {
       mounted = false;
       clearInterval(id);
     };
-  }, [useFutures]);
+  }, []);
 
   const getTicker = useCallback(
     (symbol: string): Ticker24h | undefined => {

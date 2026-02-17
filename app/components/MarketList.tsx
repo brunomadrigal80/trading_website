@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useTickerBar } from "@/context/TickerContext";
 
 function formatPrice(price: number): string {
@@ -20,8 +19,6 @@ function formatPair(symbol: string) {
 }
 
 export default function MarketList() {
-  const pathname = usePathname();
-  const useFutures = pathname?.includes("/futures") ?? false;
   const pairs = useTickerBar();
 
   return (
@@ -44,7 +41,7 @@ export default function MarketList() {
           return (
             <Link
               key={t.symbol}
-              href={`${useFutures ? "/futures" : "/"}?pair=${toPairParam(pair)}`}
+              href={`/?pair=${toPairParam(pair)}`}
               className="grid w-full grid-cols-[1fr_auto_auto] items-center gap-4 border-t border-[var(--border-subtle)] px-4 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)] [&:active]:bg-[var(--bg-tertiary)]"
             >
               <span className="font-mono text-sm font-medium text-[var(--text-primary)]">

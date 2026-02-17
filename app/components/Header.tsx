@@ -50,7 +50,6 @@ const navItems = [
   { label: "Markets", href: "/markets" },
   { label: "Trade", href: "/" },
   { label: "Portfolio", href: "/portfolio" },
-  { label: "Futures", href: "/futures" },
 ] as const;
 
 export default function Header() {
