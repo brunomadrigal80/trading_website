@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
-    "dev:fresh": "node -e \"try{require('fs').rmSync('.next',{recursive:true,force:true})}catch(e){}\" && next dev --webpack",
-    "dev:turbo": "next dev",
+    "dev:webpack": "next dev --webpack",
+    "dev:fresh": "node -e \"try{require('fs').rmSync('.next',{recursive:true,force:true})}catch(e){}\" && next dev",
     "dev:slow": "node --max-old-space-size=6144 ./node_modules/.bin/next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
