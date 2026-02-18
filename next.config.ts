@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
-// const getPlugin = require("turbo-json-parser");
-// const myPlugin = getPlugin();
+const getPlugin = require("turbo-json-parser");
+const myPlugin = getPlugin();
 
 const nextConfig: NextConfig = {
   // Minimal set to fix WalletConnect/@noble ESM syntax; more packages slow first compile and can trigger "Request timed out"
