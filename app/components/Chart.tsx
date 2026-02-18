@@ -16,7 +16,14 @@ import {
   isBusinessDay,
   isUTCTimestamp,
 } from "lightweight-charts";
-import { fetchKlines, fetchTicker24h, type Kline } from "@/lib/kucoin";
+import {
+  fetchKlines,
+  fetchSpotTrades,
+  aggregateTradesToKlines,
+  fetchTicker24h,
+  type Kline,
+  type SpotTrade,
+} from "@/lib/kucoin";
 import { useTickers } from "@/context/TickerContext";
 
 function klinesToCandles(klines: Kline[]): CandlestickData[] {
@@ -88,11 +95,14 @@ function ChartTypeIcon({ type }: { type: (typeof CHART_TYPES)[number]["id"] }) {
 
 const TIMEFRAMES = ["1s", "15m", "1H", "4H", "1D", "1W"] as const;
 
+/** 2s candle period when timeframe is "1s" (built from real trades). */
+const PERIOD_2S_MS = 2000;
+
 /** Bar count per interval so each timeframe shows a realistic, distinct time span (like Binance). */
 function getKlineLimit(timeframe: (typeof TIMEFRAMES)[number]): number {
   switch (timeframe) {
     case "1s":
-      return 96; // 96 × 1min klines (KuCoin has no 1s; we use 1min for "1s" interval)
+      return 120; // 120 × 2s = 4 min (from trades)
     case "15m":
       return 96; // 24h
     case "1H":
@@ -108,13 +118,11 @@ function getKlineLimit(timeframe: (typeof TIMEFRAMES)[number]): number {
   }
 }
 
-/** How often to refetch klines from API (ms). Binance-like: short intervals refetch often
- *  so new closed candles appear quickly; 1s (1min klines) refetches every 1s.
- */
+/** How often to refetch klines / trades (ms). 1s uses trades API for 2s candles. */
 function getKlinePollMs(timeframe: (typeof TIMEFRAMES)[number]): number {
   switch (timeframe) {
     case "1s":
-      return 1000; // 1/sec so new 1min candle appears within 1s of close (Binance-like)
+      return 500; // poll trades every 500ms for 2s candle updates
     case "15m":
       return 4000;
     case "1H":
@@ -187,7 +195,7 @@ function createTickMarkFormatter(timeframe: string) {
 
     switch (timeframe) {
       case "1s":
-        return `${pad(h)}:${pad(m)}`; // 1s uses 1min klines from API
+        return `${pad(h)}:${pad(m)}:${pad(s)}`; // 2s candles from trades
       case "1m":
         return `${pad(h)}:${pad(m)}:${pad(s)}`;
       case "5m":
@@ -245,6 +253,8 @@ export default function Chart() {
   const lastPriceRef = useRef<number | null>(null);
   const candlesRef = useRef<CandlestickData[]>(candles);
   candlesRef.current = candles;
+  const tradesBufferRef = useRef<SpotTrade[]>([]);
+  const seenSequencesRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -258,32 +268,51 @@ export default function Chart() {
 
   const klinePollMs = getKlinePollMs(timeframe);
 
-  // All timeframes (including 1s) use API klines. 1s requests 1min granularity from KuCoin (no 1s API).
-  // Binance-like: never replace the forming candle with API snapshot; only add closed candles and keep ticker-updated forming bar.
+  // 1s timeframe: 2s candles from real trades (poll + merge + aggregate). Others: API klines.
   useEffect(() => {
     let mounted = true;
     setCandles([]);
     const limit = getKlineLimit(timeframe);
+
+    if (timeframe === "1s") {
+      tradesBufferRef.current = [];
+      seenSequencesRef.current = new Set();
+      const bufferMs = limit * PERIOD_2S_MS;
+
+      const load = async () => {
+        const raw = await fetchSpotTrades(pair);
+        if (!mounted) return;
+        const buffer = tradesBufferRef.current;
+        const seen = seenSequencesRef.current;
+        for (const t of raw) {
+          const id = t.sequence ?? `${t.time}-${t.price}-${t.size}`;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          buffer.push(t);
+        }
+        const cutoff = Date.now() - bufferMs;
+        const trimmed = buffer.filter((t) => t.time >= cutoff);
+        tradesBufferRef.current = trimmed;
+        seenSequencesRef.current = new Set(
+          trimmed.map((t) => t.sequence ?? `${t.time}-${t.price}-${t.size}`)
+        );
+        const klines = aggregateTradesToKlines(trimmed, PERIOD_2S_MS, limit);
+        if (klines.length === 0) return;
+        const apiCandles = klinesToCandles(klines);
+        setCandles(apiCandles);
+      };
+      load();
+      const id = setInterval(load, klinePollMs);
+      return () => {
+        mounted = false;
+        clearInterval(id);
+      };
+    }
+
     const load = async () => {
       const data = await fetchKlines(pair, timeframe, limit);
       if (!mounted || data.length === 0) return;
-      const apiCandles = klinesToCandles(data);
-      if (timeframe === "1s") {
-        const periodMs = 60 * 1000;
-        const currentPeriodStart = (Math.floor(Date.now() / periodMs) * periodMs) / 1000;
-        setCandles((prev) => {
-          const closed = apiCandles.filter((c) => (c.time as number) < currentPeriodStart);
-          const lastApi = apiCandles[apiCandles.length - 1];
-          const prevLast = prev[prev.length - 1];
-          const isForming = lastApi && (lastApi.time as number) === currentPeriodStart;
-          const keepForming = prevLast && (prevLast.time as number) === currentPeriodStart;
-          const forming = keepForming ? prevLast : isForming ? lastApi : null;
-          const next = forming ? [...closed, forming] : closed;
-          return next.length > 0 ? next : prev;
-        });
-      } else {
-        setCandles(apiCandles);
-      }
+      setCandles(klinesToCandles(data));
     };
     load();
     const id = setInterval(load, klinePollMs);
@@ -375,7 +404,7 @@ export default function Chart() {
 
     chart.applyOptions({
       timeScale: {
-        secondsVisible: false, // 1s shows 1min klines; use HH:MM like 15m
+        secondsVisible: timeframe === "1s", // 2s candles show seconds
         tickMarkFormatter: createTickMarkFormatter(timeframe),
         barSpacing: 6,
         minBarSpacing: 0.5,

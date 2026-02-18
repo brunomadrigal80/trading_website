@@ -18,6 +18,15 @@ export type OrderBook = {
 
 export type Kline = [number, string, string, string, string, string, number, string, number, string, string, string];
 
+/** Single spot trade from /api/v1/market/histories (time in ms). */
+export type SpotTrade = {
+  time: number;
+  price: string;
+  size: string;
+  side: string;
+  sequence?: string;
+};
+
 /** Spot: "BTCUSDT" or "BTC/USDT" -> "BTC-USDT" */
 function toSpotSymbol(pair: string): string {
   const s = pair.replace("/", "");
@@ -154,4 +163,73 @@ export async function fetchKlines(
   } catch {
     return [];
   }
+}
+
+/** Fetch last 100 spot trades. KuCoin returns time in nanoseconds; we normalize to ms. */
+export async function fetchSpotTrades(symbol: string): Promise<SpotTrade[]> {
+  try {
+    const res = await fetch(
+      `${KUCOIN_API}/api/v1/market/histories?symbol=${toSpotSymbol(symbol)}`,
+      fetchOpts
+    );
+    if (!res.ok) return [];
+    const json = await res.json();
+    const data = json?.data;
+    if (!Array.isArray(data)) return [];
+    return data.map((t: { time?: number; price?: string; size?: string; side?: string; sequence?: string }) => {
+      const rawTime = Number(t.time);
+      const timeMs = rawTime > 1e15 ? Math.floor(rawTime / 1e6) : rawTime;
+      return {
+        time: timeMs,
+        price: String(t.price ?? "0"),
+        size: String(t.size ?? "0"),
+        side: String(t.side ?? ""),
+        sequence: t.sequence != null ? String(t.sequence) : undefined,
+      } as SpotTrade;
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** Aggregate trades into OHLCV candles by time period. Returns Kline[] (time in ms). */
+export function aggregateTradesToKlines(
+  trades: SpotTrade[],
+  periodMs: number,
+  maxCandles: number
+): Kline[] {
+  if (periodMs <= 0 || trades.length === 0) return [];
+  const sortedTrades = [...trades].sort((a, b) => a.time - b.time);
+  const byPeriod = new Map<number, { open: number; high: number; low: number; close: number; volume: number }>();
+  for (const t of sortedTrades) {
+    const bucket = Math.floor(t.time / periodMs) * periodMs;
+    const price = parseFloat(t.price) || 0;
+    const vol = parseFloat(t.size) || 0;
+    let c = byPeriod.get(bucket);
+    if (!c) {
+      c = { open: price, high: price, low: price, close: price, volume: vol };
+      byPeriod.set(bucket, c);
+    } else {
+      c.high = Math.max(c.high, price);
+      c.low = Math.min(c.low, price);
+      c.close = price;
+      c.volume += vol;
+    }
+  }
+  const sorted = Array.from(byPeriod.entries()).sort(([a], [b]) => a - b);
+  const slice = sorted.slice(-maxCandles);
+  return slice.map(([time, c]) => [
+    time,
+    String(c.open),
+    String(c.high),
+    String(c.low),
+    String(c.close),
+    String(c.volume),
+    0,
+    "0",
+    0,
+    "0",
+    "0",
+    "0",
+  ] as Kline);
 }
