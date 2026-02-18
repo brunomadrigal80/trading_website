@@ -408,6 +408,8 @@ export default function Chart() {
         tickMarkFormatter: createTickMarkFormatter(timeframe),
         barSpacing: 6,
         minBarSpacing: 0.5,
+        ticksVisible: true, // vertical line at each time label (center of candle span)
+        uniformDistribution: timeframe === "1s", // draw marks consistently for 2s so grid lines appear
       },
     });
 
