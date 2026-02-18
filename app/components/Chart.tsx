@@ -33,31 +33,11 @@ function candlesToLineData(candles: CandlestickData[]) {
   return candles.map((c) => ({ time: c.time, value: c.close }));
 }
 
-/** For 1s Line/Area: interpolate between closes so the line is smooth (no stepped blocks). */
 function candlesToLineDataSmooth(
   candles: CandlestickData[],
-  timeframe: string,
+  _timeframe: string,
 ): { time: UTCTimestamp; value: number }[] {
-  if (timeframe !== "1s" || candles.length === 0) {
-    return candlesToLineData(candles).map((d) => ({ time: d.time as UTCTimestamp, value: d.value }));
-  }
-  const out: { time: UTCTimestamp; value: number }[] = [];
-  for (let i = 0; i < candles.length; i++) {
-    const t0 = candles[i].time as number;
-    const v0 = candles[i].close;
-    out.push({ time: t0 as UTCTimestamp, value: v0 });
-    if (i < candles.length - 1) {
-      const t1 = (candles[i + 1].time as number) - t0;
-      const v1 = candles[i + 1].close;
-      for (let j = 1; j <= 4; j++) {
-        out.push({
-          time: (t0 + (t1 * j) / 5) as UTCTimestamp,
-          value: v0 + ((v1 - v0) * j) / 5,
-        });
-      }
-    }
-  }
-  return out;
+  return candlesToLineData(candles).map((d) => ({ time: d.time as UTCTimestamp, value: d.value }));
 }
 
 /** lightweight-charts requires data strictly ascending by time with no duplicate times. */
@@ -112,7 +92,7 @@ const TIMEFRAMES = ["1s", "15m", "1H", "4H", "1D", "1W"] as const;
 function getKlineLimit(timeframe: (typeof TIMEFRAMES)[number]): number {
   switch (timeframe) {
     case "1s":
-      return 240; // ~4h of 1m candles
+      return 96; // 96 × 1min klines (KuCoin has no 1s; we use 1min for "1s" interval)
     case "15m":
       return 96; // 24h
     case "1H":
@@ -128,13 +108,13 @@ function getKlineLimit(timeframe: (typeof TIMEFRAMES)[number]): number {
   }
 }
 
-/** How often to refetch klines from API (ms). Shorter intervals = more frequent refetch.
- *  These values are tuned to avoid constant re-renders while still feeling live.
+/** How often to refetch klines from API (ms). Binance-like: short intervals refetch often
+ *  so new closed candles appear quickly; 1s (1min klines) refetches every 1s.
  */
 function getKlinePollMs(timeframe: (typeof TIMEFRAMES)[number]): number {
   switch (timeframe) {
     case "1s":
-      return 1500; // ~0.7x/sec
+      return 1000; // 1/sec so new 1min candle appears within 1s of close (Binance-like)
     case "15m":
       return 4000;
     case "1H":
@@ -151,12 +131,12 @@ function getKlinePollMs(timeframe: (typeof TIMEFRAMES)[number]): number {
 }
 
 /** How often to update the live (rightmost) bar with latest price (ms).
- *  Slowed slightly from ultra‑high frequency to reduce render load.
+ *  Binance pushes kline updates every 250ms for the forming candle; we poll ticker at same rate for 1s.
  */
 function getTickerPollMs(timeframe: (typeof TIMEFRAMES)[number]): number {
   switch (timeframe) {
     case "1s":
-      return 600; // ~1.5x per 1s bar
+      return 250; // Binance-like: update forming candle ~4x/sec
     default:
       return 1000; // 1x/sec for other intervals
   }
@@ -207,6 +187,7 @@ function createTickMarkFormatter(timeframe: string) {
 
     switch (timeframe) {
       case "1s":
+        return `${pad(h)}:${pad(m)}`; // 1s uses 1min klines from API
       case "1m":
         return `${pad(h)}:${pad(m)}:${pad(s)}`;
       case "5m":
@@ -262,9 +243,6 @@ export default function Chart() {
   const seriesRef = useRef<{ setData: (d: unknown[]) => void; update: (d: unknown) => void } | null>(null);
   const prevCandlesRef = useRef<CandlestickData[]>([]);
   const lastPriceRef = useRef<number | null>(null);
-  const currentBarRef = useRef<{ open: number; high: number; low: number; close: number } | null>(null);
-  const currentBarStartTimeRef = useRef<number>(0);
-  const tickHistoryRef = useRef<{ time: UTCTimestamp; value: number }[]>([]);
   const candlesRef = useRef<CandlestickData[]>(candles);
   candlesRef.current = candles;
 
@@ -279,16 +257,33 @@ export default function Chart() {
   }, []);
 
   const klinePollMs = getKlinePollMs(timeframe);
-  const isSubSecond = timeframe === "1s";
 
+  // All timeframes (including 1s) use API klines. 1s requests 1min granularity from KuCoin (no 1s API).
+  // Binance-like: never replace the forming candle with API snapshot; only add closed candles and keep ticker-updated forming bar.
   useEffect(() => {
-    if (isSubSecond) return;
     let mounted = true;
     setCandles([]);
     const limit = getKlineLimit(timeframe);
     const load = async () => {
       const data = await fetchKlines(pair, timeframe, limit);
-      if (mounted && data.length > 0) setCandles(klinesToCandles(data));
+      if (!mounted || data.length === 0) return;
+      const apiCandles = klinesToCandles(data);
+      if (timeframe === "1s") {
+        const periodMs = 60 * 1000;
+        const currentPeriodStart = (Math.floor(Date.now() / periodMs) * periodMs) / 1000;
+        setCandles((prev) => {
+          const closed = apiCandles.filter((c) => (c.time as number) < currentPeriodStart);
+          const lastApi = apiCandles[apiCandles.length - 1];
+          const prevLast = prev[prev.length - 1];
+          const isForming = lastApi && (lastApi.time as number) === currentPeriodStart;
+          const keepForming = prevLast && (prevLast.time as number) === currentPeriodStart;
+          const forming = keepForming ? prevLast : isForming ? lastApi : null;
+          const next = forming ? [...closed, forming] : closed;
+          return next.length > 0 ? next : prev;
+        });
+      } else {
+        setCandles(apiCandles);
+      }
     };
     load();
     const id = setInterval(load, klinePollMs);
@@ -296,109 +291,7 @@ export default function Chart() {
       mounted = false;
       clearInterval(id);
     };
-  }, [pair, timeframe, klinePollMs, isSubSecond]);
-
-  useEffect(() => {
-    if (!isSubSecond) return;
-    setCandles([]);
-    currentBarStartTimeRef.current = 0;
-    currentBarRef.current = null;
-    const barDurationMs = 1000;
-    const fetchPrice = fetchTicker24h;
-    let mounted = true;
-    (async () => {
-      const t = await fetchPrice(pair);
-      const price = t ? parseFloat(t.lastPrice) : NaN;
-      if (!mounted || !Number.isFinite(price)) return;
-      lastPriceRef.current = price;
-      const now = Date.now();
-      const bucketMs = Math.floor(now / barDurationMs) * barDurationMs;
-      const bucketTime = (bucketMs / 1000) as UTCTimestamp;
-      currentBarStartTimeRef.current = bucketMs;
-      currentBarRef.current = { open: price, high: price, low: price, close: price };
-      const bar: CandlestickData = {
-        time: bucketTime,
-        open: price,
-        high: price,
-        low: price,
-        close: price,
-      };
-      setCandles((prev) => [...prev, bar]);
-    })();
-    const id = setInterval(() => {
-      if (!mounted) return;
-      const price = lastPriceRef.current ?? NaN;
-      if (!Number.isFinite(price)) return;
-      lastPriceRef.current = price;
-      const now = Date.now();
-      const bucketMs = Math.floor(now / barDurationMs) * barDurationMs;
-      const bucketTime = (bucketMs / 1000) as UTCTimestamp;
-      const series = seriesRef.current;
-      if (currentBarStartTimeRef.current === 0) {
-        currentBarStartTimeRef.current = bucketMs;
-        currentBarRef.current = { open: price, high: price, low: price, close: price };
-        const bar: CandlestickData = {
-          time: bucketTime,
-          open: price,
-          high: price,
-          low: price,
-          close: price,
-        };
-        setCandles((prev) => [...prev, bar]);
-        return;
-      }
-      if (bucketMs > currentBarStartTimeRef.current) {
-        const completed = currentBarRef.current!;
-        const completedBar: CandlestickData = {
-          time: (currentBarStartTimeRef.current / 1000) as UTCTimestamp,
-          open: completed.open,
-          high: completed.high,
-          low: completed.low,
-          close: completed.close,
-        };
-        currentBarStartTimeRef.current = bucketMs;
-        currentBarRef.current = { open: price, high: price, low: price, close: price };
-        const newBar: CandlestickData = {
-          time: bucketTime,
-          open: price,
-          high: price,
-          low: price,
-          close: price,
-        };
-        setCandles((prev) => [...prev, completedBar, newBar]);
-        if (series) {
-          try {
-            series.update(completedBar as never);
-            series.update(newBar as never);
-          } catch {
-            // ignore
-          }
-        }
-      } else {
-        const cur = currentBarRef.current!;
-        cur.high = Math.max(cur.high, price);
-        cur.low = Math.min(cur.low, price);
-        cur.close = price;
-        if (series) {
-          try {
-            series.update({
-              time: (currentBarStartTimeRef.current / 1000) as UTCTimestamp,
-              open: cur.open,
-              high: cur.high,
-              low: cur.low,
-              close: cur.close,
-            } as never);
-          } catch {
-            // ignore
-          }
-        }
-      }
-    }, barDurationMs);
-    return () => {
-      mounted = false;
-      clearInterval(id);
-    };
-  }, [pair, timeframe, isSubSecond]);
+  }, [pair, timeframe, klinePollMs]);
 
   // Create chart once on mount; remove only on unmount to avoid "Object is disposed" from library paint after remove
   useEffect(() => {
@@ -482,7 +375,7 @@ export default function Chart() {
 
     chart.applyOptions({
       timeScale: {
-        secondsVisible: timeframe === "1s",
+        secondsVisible: false, // 1s shows 1min klines; use HH:MM like 15m
         tickMarkFormatter: createTickMarkFormatter(timeframe),
         barSpacing: 6,
         minBarSpacing: 0.5,
@@ -565,12 +458,6 @@ export default function Chart() {
 
       if (prev.length === 0) {
         series.setData(data);
-        if (timeframe === "1s" && (chartType === "line" || chartType === "area") && tickHistoryRef.current.length > 0) {
-          const lastTime = (candles[candles.length - 1]?.time as number) ?? 0;
-          for (const p of tickHistoryRef.current) {
-            if ((p.time as number) >= lastTime) series.update(p as never);
-          }
-        }
         prevCandlesRef.current = [...candles];
         chartRef.current?.timeScale().fitContent();
         chartRef.current?.timeScale().scrollToRealTime();
@@ -582,29 +469,19 @@ export default function Chart() {
       const prevTime = (lastPrev as { time: UTCTimestamp }).time;
       const newTime = (lastNew as { time: UTCTimestamp }).time;
 
-      const reapplyTicks = () => {
-        if (timeframe === "1s" && (chartType === "line" || chartType === "area") && tickHistoryRef.current.length > 0) {
-          const lastTime = (candles[candles.length - 1]?.time as number) ?? 0;
-          for (const p of tickHistoryRef.current) {
-            if ((p.time as number) >= lastTime) series.update(p as never);
-          }
-        }
-      };
-
       if (prevTime === newTime) {
         const bar =
           chartType === "candles" || chartType === "bars"
             ? lastNew
             : { time: lastNew.time, value: lastNew.close };
         series.update(bar as never);
-      } else if (candles.length > prev.length && !(timeframe === "1s" && (chartType === "line" || chartType === "area"))) {
+      } else if (candles.length > prev.length) {
         for (let i = prev.length; i < candles.length; i++) {
           const bar = chartType === "candles" || chartType === "bars" ? candles[i] : candlesToLineData([candles[i]])[0];
           series.update(bar as never);
         }
       } else {
         series.setData(data);
-        reapplyTicks();
       }
       prevCandlesRef.current = [...candles];
     } catch {
@@ -622,7 +499,6 @@ export default function Chart() {
       const latest = prevCandlesRef.current;
       if (latest.length === 0) return;
       const last = latest[latest.length - 1];
-      const is1sLineArea = timeframe === "1s" && (chartType === "line" || chartType === "area");
       const liveBar =
         chartType === "candles" || chartType === "bars"
           ? {
@@ -632,51 +508,19 @@ export default function Chart() {
               low: Math.min(last.low, price),
               close: price,
             }
-          : is1sLineArea
-            ? { time: (Date.now() / 1000) as UTCTimestamp, value: price }
-            : { time: last.time, value: price };
-      if (is1sLineArea) {
-        const barStart = currentBarStartTimeRef.current / 1000;
-        tickHistoryRef.current = tickHistoryRef.current.filter((pt) => (pt.time as number) >= barStart);
-        tickHistoryRef.current.push({ time: liveBar.time as UTCTimestamp, value: price });
-      }
+          : { time: last.time, value: price };
       try {
-        series.update(liveBar as never);
+        seriesRef.current.update(liveBar as never);
       } catch {
         // Chart may be disposed (e.g. unmount or chart type change)
       }
     };
 
-    const updateSubSecondBar = (price: number) => {
-      const cur = currentBarRef.current;
-      const startMs = currentBarStartTimeRef.current;
-      if (!cur || startMs === 0 || !seriesRef.current) return;
-      cur.high = Math.max(cur.high, price);
-      cur.low = Math.min(cur.low, price);
-      cur.close = price;
-      try {
-        seriesRef.current.update({
-          time: (startMs / 1000) as UTCTimestamp,
-          open: cur.open,
-          high: cur.high,
-          low: cur.low,
-          close: cur.close,
-        } as never);
-      } catch {
-        // ignore
-      }
-    };
-
-    if (timeframe !== "1s" || (chartType !== "line" && chartType !== "area")) {
-      tickHistoryRef.current = [];
-    }
-
     if (tickerData) {
       const p = parseFloat(tickerData.lastPrice);
       if (Number.isFinite(p)) {
         lastPriceRef.current = p;
-        if (isSubSecond) updateSubSecondBar(p);
-        else if (candles.length > 0) updateLiveBar(p);
+        if (candles.length > 0) updateLiveBar(p);
       }
     }
 
@@ -686,8 +530,7 @@ export default function Chart() {
         const p = parseFloat(t.lastPrice);
         if (Number.isFinite(p)) {
           lastPriceRef.current = p;
-          if (isSubSecond) updateSubSecondBar(p);
-          else if (seriesRef.current && prevCandlesRef.current.length > 0) updateLiveBar(p);
+          if (seriesRef.current && prevCandlesRef.current.length > 0) updateLiveBar(p);
         }
       }
     };
