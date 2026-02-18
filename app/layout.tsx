@@ -1,21 +1,8 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import ContextProvider from "@/context";
 import RemoveInitialLoader from "@/app/components/RemoveInitialLoader";
-
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
 
 export const metadata: Metadata = {
   title: "Vertex | Professional Trading",
@@ -49,7 +36,7 @@ export default async function RootLayout({
   return (
     <html lang="en" className="dark" style={{ background: "#0a0b0d" }}>
       <body
-        className={`${dmSans.variable} ${jetbrainsMono.variable} antialiased`}
+        className="antialiased"
         style={{ background: "#0a0b0d" }}
       >
         <div

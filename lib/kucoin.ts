@@ -32,13 +32,6 @@ function toAppSymbol(kucoinSymbol: string): string {
   return kucoinSymbol.replace("-", "");
 }
 
-const DEFAULT_TICKER_SYMBOLS = [
-  "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT",
-  "AVAXUSDT", "LINKUSDT", "MATICUSDT", "DOTUSDT", "ADAUSDT", "ATOMUSDT",
-  "LTCUSDT", "UNIUSDT", "ETCUSDT", "APTUSDT", "ARBUSDT", "OPUSDT",
-  "FILUSDT", "INJUSDT", "SUIUSDT", "NEARUSDT", "STXUSDT",
-];
-
 const fetchOpts: RequestInit = { cache: "no-store" };
 
 // --- Spot ---
@@ -86,20 +79,6 @@ export async function fetchAllTickers24h(): Promise<Ticker24h[]> {
         } as Ticker24h;
       })
       .filter((t: Ticker24h | null): t is Ticker24h => t != null);
-  } catch {
-    return [];
-  }
-}
-
-export async function fetchTickers24h(symbols?: string[]): Promise<Ticker24h[]> {
-  try {
-    const toFetch = symbols?.length ? symbols : DEFAULT_TICKER_SYMBOLS;
-    const results = await Promise.all(
-      toFetch.map((s) => fetchTicker24h(s))
-    );
-    const tickers = results.filter((t): t is Ticker24h => t != null);
-    if (symbols?.length) return tickers;
-    return tickers.sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 20);
   } catch {
     return [];
   }
