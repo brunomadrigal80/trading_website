@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
   },
   turbopack: {},
   webpack: (config) => {
-    config.externals.push("pino-pretty", "lokijs", "encoding");
+    config.externals.push("pino-pretty", "lokijs", "encoding", "myPlugin");
     config.resolve ??= {};
     config.resolve.fallback = {
       ...config.resolve.fallback,
