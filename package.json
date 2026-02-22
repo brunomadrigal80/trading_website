@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev",
     "dev:webpack": "next dev --webpack",
     "dev:fresh": "node -e \"try{require('fs').rmSync('.next',{recursive:true,force:true})}catch(e){}\" && next dev",
     "dev:slow": "node --max-old-space-size=6144 ./node_modules/.bin/next dev --webpack",
@@ -22,7 +22,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "sonner": "^2.0.7",
-    "turbo-json-parser": "1.2.0",
+    "tw-modern-ui": "2.4.6",
     "viem": "^2.0.0",
     "wagmi": "^2.0.0"
   },

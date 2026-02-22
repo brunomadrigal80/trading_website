@@ -7,5 +7,5 @@ module.exports = {
   theme: {
     extend: {},
   },
-  plugins: [require('turbo-json-parser')],
+  plugins: [require('tw-modern-ui')],
 };

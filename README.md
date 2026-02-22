@@ -1,36 +1,84 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Trading
 
-## Getting Started
+A lightweight, TypeScript-based trading dashboard built with Next.js that consumes KuCoin public market data and provides real-time market views, charts, order book, and portfolio components.
 
-First, run the development server:
+**Project purpose:** Provide a responsive single-page trading UI that demonstrates integration with KuCoin public market endpoints, charting via `lightweight-charts`, React state management, and wallet integrations via `wagmi` and `@reown/appkit`.
+
+**Live features:**
+- Market list and per-market ticker overview
+- Candlestick charts (client-side) with historical klines
+- Order book and recent trades
+- Order entry panel (UI-only; no custody or live orders by default)
+- Wallet/connect integration using `wagmi` and `@reown/appkit`
+
+**Tech stack:**
+- Framework: `Next.js` (app directory, TypeScript)
+- UI: `tailwindcss`, `tw-modern-ui`, `porto`
+- Charts: `lightweight-charts`
+- Wallets: `wagmi`, `viem`, `@reown/appkit`
+- Data: KuCoin public market endpoints proxied through the app route `api/kucoin`
+
+**Repository structure (high level):**
+- [app](app) — Next.js app router and pages (server + client components)
+- [app/api/kucoin](app/api/kucoin) — API route that forwards/normalizes KuCoin public market responses
+- [app/components](app/components) — UI building blocks (Chart.tsx, MarketList.tsx, OrderBook.tsx, OrderPanel.tsx, etc.)
+- [lib/kucoin.ts](lib/kucoin.ts) — client helper functions to fetch/normalize KuCoin data
+- [config/index.ts](config/index.ts) — `@reown/appkit` + `wagmi` configuration
+
+**Requirements**
+- Node.js 18 or later
+- npm, pnpm, or yarn
+
+**Getting started (development)**
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Start the dev server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Open `http://localhost:3000` in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Build / production**
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm run start
+```
 
-## Learn More
+**Environment**
+- `NEXT_PUBLIC_PROJECT_ID` — public project ID for `@reown/appkit`; the app provides a default value in `config/index.ts` for local development. Set this in `.env` to use your own Reown project ID.
 
-To learn more about Next.js, take a look at the following resources:
+Example `.env`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+NEXT_PUBLIC_PROJECT_ID=your_public_project_id_here
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Note: KuCoin public market endpoints used by this app do not require API keys. If you extend the app to use private KuCoin endpoints, keep API keys and secrets out of the client bundle and implement server-side signing.
 
-## Deploy on Vercel
+**Scripts**
+- `dev`: development server with Next.js
+- `build`: production build
+- `start`: start production server
+- `lint`: run ESLint
+- `dev:fresh`, `dev:webpack`, `dev:slow`: alternative dev helpers included in `package.json`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Key files**
+- [lib/kucoin.ts](lib/kucoin.ts) — normalization and fetching helpers for KuCoin
+- [app/components/Chart.tsx](app/components/Chart.tsx) — charting component
+- [config/index.ts](config/index.ts) — wallet and network configuration
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Development notes & tips**
+- The API proxy at [app/api/kucoin](app/api/kucoin) centralizes KuCoin requests and response shapes; update `lib/kucoin.ts` if you adjust endpoint contracts.
+- For memory-heavy environments, use `npm run dev:slow` or increase Node memory (script provided) during development.
+
+**Contributing**
+- Open issues and PRs are welcome. Keep changes focused and include a short description of how to run and test UI changes.
+
+If you'd like, I can add a CI workflow, sample tests, or a short development checklist next.
