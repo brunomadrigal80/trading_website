@@ -3,8 +3,7 @@ import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import { mainnet, arbitrum } from "@reown/appkit/networks";
 
 // Get projectId from https://dashboard.reown.com - use public ID for localhost
-export const projectId =
-  process.env.NEXT_PUBLIC_PROJECT_ID || "b56e18d47c72ab683b10814fe9495694";
+export const projectId = "9eaa8f5c4e30420769c0f7664c63deb0";
 
 if (!projectId) {
   throw new Error("Project ID is not defined");
