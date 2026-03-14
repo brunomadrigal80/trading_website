@@ -7,5 +7,5 @@ module.exports = {
   theme: {
     extend: {},
   },
-  plugins: [require('tw-modern-ui')],
+  plugins: [require('tailmagic')],
 };

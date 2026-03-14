@@ -13,7 +13,7 @@ A lightweight, TypeScript-based trading dashboard built with Next.js that consum
 
 **Tech stack:**
 - Framework: `Next.js` (app directory, TypeScript)
-- UI: `tailwindcss`, `tw-modern-ui`, `porto`
+- UI: `tailwindcss`, `tailmagic`, `porto`
 - Charts: `lightweight-charts`
 - Wallets: `wagmi`, `viem`, `@reown/appkit`
 - Data: KuCoin public market endpoints proxied through the app route `api/kucoin`

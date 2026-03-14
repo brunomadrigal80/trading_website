@@ -22,7 +22,6 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "sonner": "^2.0.7",
-    "tw-modern-ui": "2.4.6",
     "viem": "^2.0.0",
     "wagmi": "^2.0.0"
   },
@@ -35,6 +34,7 @@
     "eslint-config-next": "16.1.6",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.19",
+    "tailmagic": "^2.3.2",
     "typescript": "^5"
   }
 }
